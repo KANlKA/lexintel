@@ -1,0 +1,18 @@
+[project]
+name = "lexintel"
+version = "0.1.0"
+description = "LexIntel - Convert legal documents into structured events"
+requires-python = ">=3.11"
+dependencies = [
+    "pdfplumber>=0.10.0",
+    "pytesseract>=0.3.10",
+    "Pillow>=10.0.0",
+    "spacy>=3.7.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "groq>=0.4.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["document_pipeline*"]

@@ -1,0 +1,37 @@
+# Python build and cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables and secrets
+.env
+.env.*
+
+# System files
+.DS_Store
+Thumbs.db
+
+# IDE/editor
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Large datasets (keep folder structure)
+dataset/*
+!dataset/.gitkeep
+
+# Node modules
+node_modules/
+
+# Python build artifacts
+build/
+dist/
+*.egg-info/
