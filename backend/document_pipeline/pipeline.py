@@ -1,13 +1,14 @@
+
+
+from typing import Any
+
+from document_pipeline.extraction.event_extractor import extract_events
 """
 Main pipeline for LexIntel document processing.
 
 Orchestrates the full document processing pipeline: load input, split sections,
 extract entities, extract events, and return structured event dictionaries.
 """
-
-from typing import Any
-
-from document_pipeline.extraction.event_extractor import extract_events
 from document_pipeline.extraction.ner import extract_entities
 from document_pipeline.ingestion.dataset_loader import load_cases
 from document_pipeline.ingestion.pdf_loader import extract_pdf_text

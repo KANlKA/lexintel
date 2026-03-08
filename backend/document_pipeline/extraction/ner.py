@@ -9,9 +9,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-import spacy
-
-
 # Labels to extract: PERSON -> persons, GPE -> locations, DATE -> dates, TIME -> times
 _LABEL_MAP = {
     "PERSON": "persons",
@@ -22,9 +19,19 @@ _LABEL_MAP = {
 
 
 def _get_nlp():
-    """Lazy-load spaCy model to avoid loading on import."""
+    """
+    Lazy-load spaCy model to avoid loading on import.
+
+    Returns None when spaCy/model is unavailable (e.g., unsupported Python runtime).
+    """
     if not hasattr(_get_nlp, "_nlp"):
-        _get_nlp._nlp = spacy.load("en_core_web_sm")
+        try:
+            import spacy
+
+            _get_nlp._nlp = spacy.load("en_core_web_sm")
+        except Exception as exc:
+            print(f"[NER] spaCy unavailable, skipping entity extraction: {exc}")
+            _get_nlp._nlp = None
     return _get_nlp._nlp
 
 
@@ -53,6 +60,9 @@ def extract_entities(text: str) -> dict[str, list[str]]:
         return result
 
     nlp = _get_nlp()
+    if nlp is None:
+        return result
+
     doc = nlp(text)
 
     # Use sets to deduplicate, then convert to list

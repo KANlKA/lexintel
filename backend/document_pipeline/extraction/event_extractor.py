@@ -74,10 +74,14 @@ def _extract_json_array(text: str) -> list[dict[str, Any]]:
 def _raw_to_event(
     raw: dict[str, Any],
     source_document: str,
-    confidence: float = DEFAULT_CONFIDENCE,
+    confidence: float = DEFAULT_CONFIDENCE,  # FIX: now actually used as base
 ) -> Event | None:
     """
     Convert a raw JSON object to an Event. Returns None if required fields missing.
+
+    Confidence is calculated from the caller-supplied base score, then
+    penalised for missing time (-0.05) or missing location (-0.05).
+    Previously the base was hardcoded to 0.9 and the parameter ignored — fixed.
     """
     actor = raw.get("actor")
     action = raw.get("action")
@@ -87,20 +91,28 @@ def _raw_to_event(
     action = str(action).strip()
     if not actor or not action:
         return None
+
     time_val = raw.get("time")
     location_val = raw.get("location")
-    time_str = str(time_val).strip() if time_val is not None and time_val != "null" else None
-    location_str = (
-        str(location_val).strip()
-        if location_val is not None and location_val != "null"
+    time_str = (
+        str(time_val).strip()
+        if time_val is not None and str(time_val).strip().lower() != "null"
         else None
     )
-    conf =0.9
+    location_str = (
+        str(location_val).strip()
+        if location_val is not None and str(location_val).strip().lower() != "null"
+        else None
+    )
 
+    # FIX: use the passed-in confidence as base, not hardcoded 0.9
+    conf = confidence
     if not time_str:
         conf -= 0.05
     if not location_str:
         conf -= 0.05
+    conf = round(max(0.0, min(1.0, conf)), 4)  # clamp to [0, 1]
+
     return Event.create_with_generated_id(
         actor=actor,
         action=action,
@@ -128,7 +140,8 @@ def extract_events(
         text: Legal document or section text.
         prompt_template: Optional prompt; uses prompts/event_prompt.txt if None.
         source_document: Reference for source_document on each Event.
-        confidence: Default confidence score for extracted events.
+        confidence: Base confidence score for extracted events (default 0.8).
+                    Penalised -0.05 each for missing time or location.
 
     Returns:
         List of Event objects.
@@ -154,7 +167,10 @@ def extract_events(
         response = client.chat.completions.create(
             model=GROQ_MODEL,
             messages=[
-                {"role": "system", "content": "You extract legal events as JSON. Output only valid JSON."},
+                {
+                    "role": "system",
+                    "content": "You extract legal events as JSON. Output only valid JSON.",
+                },
                 {"role": "user", "content": prompt},
             ],
         )
@@ -197,7 +213,7 @@ def extract_events_from_sections(
         sections: List of section dicts with 'content' or 'text' key.
         prompt_template: Optional prompt template.
         source_document: Source document reference.
-        confidence: Default confidence score.
+        confidence: Base confidence score.
 
     Returns:
         Combined list of Event objects.
