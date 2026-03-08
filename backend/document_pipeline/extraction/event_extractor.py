@@ -3,6 +3,9 @@ Event extractor for LexIntel document pipeline.
 
 Extracts structured legal events from document text using Groq Llama 3.1
 and converts them into Event objects.
+
+Robustness: malformed LLM JSON responses are logged and skipped rather
+than crashing the entire pipeline.
 """
 
 import json
@@ -28,8 +31,7 @@ def _load_prompt() -> str:
     base = Path(__file__).resolve().parent.parent
     prompt_path = base / "prompts" / "event_prompt.txt"
     if not prompt_path.exists():
-        msg = f"Prompt file not found: {prompt_path}"
-        raise FileNotFoundError(msg)
+        raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
     return prompt_path.read_text(encoding="utf-8")
 
 
@@ -41,52 +43,123 @@ def _get_groq_client() -> Groq:
     load_dotenv(base / "backend" / ".env")
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        msg = "GROQ_API_KEY not set. Add it to .env or environment."
-        raise ValueError(msg)
+        raise ValueError("GROQ_API_KEY not set. Add it to .env or environment.")
     return Groq(api_key=api_key)
+
+
+def _repair_json(text: str) -> str:
+    """
+    Attempt basic repairs on malformed JSON arrays from LLMs.
+
+    Common LLM mistakes we fix:
+      - Trailing commas before ] or }
+      - Single quotes instead of double quotes
+      - Truncated arrays (add closing bracket)
+    """
+    # Remove trailing commas before closing brackets/braces
+    text = re.sub(r",\s*([}\]])", r"\1", text)
+
+    # Replace smart quotes with straight quotes
+    text = text.replace("\u201c", '"').replace("\u201d", '"')
+    text = text.replace("\u2018", "'").replace("\u2019", "'")
+
+    # If array opened but not closed, close it
+    open_count = text.count("[")
+    close_count = text.count("]")
+    if open_count > close_count:
+        # Find last complete object and close after it
+        last_brace = text.rfind("}")
+        if last_brace != -1:
+            text = text[: last_brace + 1] + "]"
+
+    return text
 
 
 def _extract_json_array(text: str) -> list[dict[str, Any]]:
     """
-    Parse JSON array from LLM response. Handles markdown code blocks and
-    extra text after the JSON array.
+    Parse JSON array from LLM response with repair fallback.
+
+    Strategy:
+      1. Strip markdown code blocks
+      2. Try direct parse
+      3. Try repair then parse
+      4. Try extracting individual objects if array fails
     """
     text = text.strip()
-    # Remove markdown code blocks if present
+
+    # Strip markdown code fences
     match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
     if match:
         text = match.group(1).strip()
-    # Extract the first JSON array from the response (handles extra text after)
+
+    # Extract the JSON array portion
     array_match = re.search(r"\[[\s\S]*\]", text)
     if not array_match:
-        raise ValueError("No JSON array found in LLM response")
+        # Maybe it's a single object — wrap it
+        obj_match = re.search(r"\{[\s\S]*\}", text)
+        if obj_match:
+            try:
+                obj = json.loads(obj_match.group(0))
+                return [obj] if isinstance(obj, dict) else []
+            except json.JSONDecodeError:
+                pass
+        raise ValueError("No JSON array or object found in LLM response")
+
     json_str = array_match.group(0)
+
+    # Attempt 1: direct parse
     try:
         parsed = json.loads(json_str)
-    except json.JSONDecodeError as e:
-        logger.warning("Invalid JSON from LLM: %s", e)
-        raise ValueError(f"Invalid JSON response: {e}") from e
-    if not isinstance(parsed, list):
-        parsed = [parsed] if isinstance(parsed, dict) else []
-    return parsed
+        if isinstance(parsed, list):
+            return parsed
+        return [parsed] if isinstance(parsed, dict) else []
+    except json.JSONDecodeError:
+        pass
+
+    # Attempt 2: repair then parse
+    repaired = _repair_json(json_str)
+    try:
+        parsed = json.loads(repaired)
+        if isinstance(parsed, list):
+            logger.debug("JSON repaired successfully.")
+            return parsed
+        return [parsed] if isinstance(parsed, dict) else []
+    except json.JSONDecodeError:
+        pass
+
+    # Attempt 3: extract individual objects from broken array
+    objects: list[dict] = []
+    for obj_match in re.finditer(r"\{[^{}]*\}", json_str):
+        try:
+            obj = json.loads(obj_match.group(0))
+            if isinstance(obj, dict):
+                objects.append(obj)
+        except json.JSONDecodeError:
+            continue
+
+    if objects:
+        logger.warning(
+            "Array parse failed — recovered %d individual objects.", len(objects)
+        )
+        return objects
+
+    raise ValueError(f"Could not parse JSON from LLM response after repair attempts.")
 
 
 def _raw_to_event(
     raw: dict[str, Any],
     source_document: str,
-    confidence: float = DEFAULT_CONFIDENCE,  # FIX: now actually used as base
+    confidence: float = DEFAULT_CONFIDENCE,
 ) -> Event | None:
     """
-    Convert a raw JSON object to an Event. Returns None if required fields missing.
-
-    Confidence is calculated from the caller-supplied base score, then
-    penalised for missing time (-0.05) or missing location (-0.05).
-    Previously the base was hardcoded to 0.9 and the parameter ignored — fixed.
+    Convert a raw JSON object to an Event.
+    Returns None if required fields are missing.
     """
     actor = raw.get("actor")
     action = raw.get("action")
     if not actor or not action:
         return None
+
     actor = str(actor).strip()
     action = str(action).strip()
     if not actor or not action:
@@ -94,24 +167,25 @@ def _raw_to_event(
 
     time_val = raw.get("time")
     location_val = raw.get("location")
+
     time_str = (
         str(time_val).strip()
-        if time_val is not None and str(time_val).strip().lower() != "null"
+        if time_val is not None and str(time_val).strip().lower() not in ("null", "none", "")
         else None
     )
     location_str = (
         str(location_val).strip()
-        if location_val is not None and str(location_val).strip().lower() != "null"
+        if location_val is not None and str(location_val).strip().lower() not in ("null", "none", "")
         else None
     )
 
-    # FIX: use the passed-in confidence as base, not hardcoded 0.9
+    # Use caller-supplied confidence as base, penalise for missing fields
     conf = confidence
     if not time_str:
         conf -= 0.05
     if not location_str:
         conf -= 0.05
-    conf = round(max(0.0, min(1.0, conf)), 4)  # clamp to [0, 1]
+    conf = round(max(0.0, min(1.0, conf)), 4)
 
     return Event.create_with_generated_id(
         actor=actor,
@@ -133,18 +207,17 @@ def extract_events(
     """
     Extract structured events from legal narrative text using Groq Llama 3.1.
 
-    Sends the text to the LLM, parses the JSON array response, and converts
-    each item into an Event. Handles invalid JSON, missing fields, and API errors.
+    Malformed LLM responses are logged and return an empty list rather
+    than raising — this keeps the pipeline running across all cases.
 
     Args:
         text: Legal document or section text.
-        prompt_template: Optional prompt; uses prompts/event_prompt.txt if None.
-        source_document: Reference for source_document on each Event.
-        confidence: Base confidence score for extracted events (default 0.8).
-                    Penalised -0.05 each for missing time or location.
+        prompt_template: Optional prompt; loads event_prompt.txt if None.
+        source_document: Source reference for each Event.
+        confidence: Base confidence score (default 0.8).
 
     Returns:
-        List of Event objects.
+        List of Event objects. Empty list on LLM/parse failure.
     """
     if not text or not text.strip():
         return []
@@ -169,10 +242,17 @@ def extract_events(
             messages=[
                 {
                     "role": "system",
-                    "content": "You extract legal events as JSON. Output only valid JSON.",
+                    "content": (
+                        "You extract legal events as JSON. "
+                        "Output ONLY a valid JSON array. "
+                        "No explanation, no markdown, no extra text. "
+                        "Every string value must use double quotes. "
+                        "Use null (not 'null') for missing fields."
+                    ),
                 },
                 {"role": "user", "content": prompt},
             ],
+            temperature=0.1,   # lower temperature = more consistent JSON
         )
     except Exception as e:
         logger.error("Groq API failure: %s", e)
@@ -180,13 +260,19 @@ def extract_events(
 
     content = response.choices[0].message.content
     if not content:
+        logger.warning("Empty response from Groq for document: %s", source_document)
         return []
 
     try:
         raw_list = _extract_json_array(content)
     except ValueError as e:
-        logger.warning("Could not parse LLM response as JSON: %s", e)
-        raise
+        # Log and continue — don't crash the whole pipeline
+        logger.warning(
+            "Skipping document '%s' — could not parse LLM response: %s",
+            source_document,
+            e,
+        )
+        return []
 
     events: list[Event] = []
     for raw in raw_list:

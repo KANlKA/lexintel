@@ -1,0 +1,1 @@
+"""LexIntel reasoning engine — timeline, contradiction detection, weakness scoring."""

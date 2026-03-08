@@ -9,9 +9,9 @@ Run with:
     uvicorn document_pipeline.api:app --reload --port 8001
 
 Endpoints:
-    POST /process/dataset   — process N cases from the JSONL dataset
-    POST /process/pdf       — process a single PDF (upload)
-    GET  /health            — health check
+    GET  /health                — health check
+    POST /process/dataset       — process N cases from the JSONL dataset
+    POST /process/pdf           — process a single PDF (upload)
 """
 
 import logging
@@ -20,11 +20,9 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Query
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-
-from document_pipeline.pipeline import process_dataset, process_document
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +32,6 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Allow Next.js frontend (port 3000) and reasoning engine (port 8000) to call this
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -49,25 +46,28 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+def startup_event():
+    """Initialize database schema on startup. Safe to run multiple times."""
+    try:
+        from document_pipeline.database.postgres_client import initialize_schema
+        initialize_schema()
+        logger.info("Database schema initialized successfully.")
+    except Exception as e:
+        logger.warning(
+            "Database schema init skipped: %s. "
+            "Set DATABASE_URL in .env to enable persistence.", e
+        )
+
+
 # ── Request / Response models ────────────────────────────────────────────────
 
 class DatasetProcessRequest(BaseModel):
-    """Request body for dataset processing."""
     dataset_path: str = "../dataset/text.data.jsonl"
     limit: int = 5
 
-class EventResponse(BaseModel):
-    """A single structured event."""
-    event_id: str
-    actor: str
-    action: str
-    time: str | None
-    location: str | None
-    source_document: str
-    confidence: float
 
 class ProcessResponse(BaseModel):
-    """Response from any processing endpoint."""
     status: str
     events_extracted: int
     events: list[dict[str, Any]]
@@ -75,13 +75,23 @@ class ProcessResponse(BaseModel):
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
+@app.get("/")
+def root() -> dict:
+    return {
+        "service": "LexIntel Document Pipeline API",
+        "status": "ok",
+        "docs": "/docs",
+        "endpoints": ["/health", "/process/dataset", "/process/pdf"],
+    }
+
+
 @app.get("/health")
 def health() -> dict:
     return {
-        "service": "LexIntel Document Pipeline",
+        "service": "LexIntel Document Pipeline API",
         "status": "ok",
         "docs": "/docs",
-        "endpoints": ["/process/dataset", "/process/pdf"],
+        "endpoints": ["/health", "/process/dataset", "/process/pdf"],
     }
 
 
@@ -90,15 +100,12 @@ def process_dataset_endpoint(request: DatasetProcessRequest) -> ProcessResponse:
     """
     Process cases from the JSONL dataset file.
 
-    The dataset_path can be absolute or relative to LexIntel/backend.
-    Returns all extracted events as structured JSON.
-
     Example body:
         { "dataset_path": "../dataset/text.data.jsonl", "limit": 5 }
     """
-    path = Path(request.dataset_path)
+    from document_pipeline.pipeline import process_dataset
 
-    # Try resolving relative to backend folder
+    path = Path(request.dataset_path)
     if not path.exists():
         backend_dir = Path(__file__).resolve().parent.parent
         path = backend_dir / request.dataset_path
@@ -106,8 +113,10 @@ def process_dataset_endpoint(request: DatasetProcessRequest) -> ProcessResponse:
     if not path.exists():
         raise HTTPException(
             status_code=404,
-            detail=f"Dataset not found: {request.dataset_path}. "
-                   f"Make sure text.data.jsonl is in LexIntel/dataset/"
+            detail=(
+                f"Dataset not found: {request.dataset_path}. "
+                "Make sure text.data.jsonl is in LexIntel/dataset/"
+            ),
         )
 
     try:
@@ -128,16 +137,19 @@ async def process_pdf_endpoint(file: UploadFile = File(...)) -> ProcessResponse:
     """
     Process a single uploaded PDF file.
 
-    Upload a PDF legal document and receive extracted structured events.
-    Accepts multipart/form-data with field name 'file'.
+    Use curl to test (Swagger UI has a known bug with file uploads):
+        curl -X POST http://localhost:8001/process/pdf \\
+             -H "accept: application/json" \\
+             -F "file=@/path/to/document.pdf"
     """
+    from document_pipeline.pipeline import process_document
+
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(
             status_code=400,
-            detail="Only PDF files are accepted. Upload a .pdf file."
+            detail="Only PDF files are accepted.",
         )
 
-    # Save to a temp file (pdfplumber needs a file path)
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         content = await file.read()
         tmp.write(content)
@@ -149,7 +161,7 @@ async def process_pdf_endpoint(file: UploadFile = File(...)) -> ProcessResponse:
         logger.error("PDF processing failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        os.unlink(tmp_path)  # clean up temp file
+        os.unlink(tmp_path)
 
     return ProcessResponse(
         status="success",
