@@ -24,6 +24,20 @@ logger = logging.getLogger(__name__)
 
 GROQ_MODEL = "llama-3.1-8b-instant"
 DEFAULT_CONFIDENCE = 0.8
+_FALLBACK_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
+_TIME_PATTERN = re.compile(
+    r"\b("
+    r"\d{1,2}:\d{2}\s?(?:AM|PM|am|pm)?|"
+    r"\d{4}|"
+    r"morning|afternoon|evening|night|midnight|noon|dawn|dusk"
+    r")\b"
+)
+_LOCATION_PATTERN = re.compile(
+    r"\b(?:at|in|near|outside|inside)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,3})"
+)
+_ACTOR_PATTERN = re.compile(
+    r"^(?:The\s+)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}|[A-Z][a-z]+\s+(?:court|judge|defendant|plaintiff|witness|officer))\b"
+)
 
 
 def _load_prompt() -> str:
@@ -197,6 +211,53 @@ def _raw_to_event(
     )
 
 
+def _fallback_extract_events(text: str, source_document: str) -> list[Event]:
+    """
+    Deterministic offline fallback when Groq is unavailable.
+
+    Uses shallow sentence heuristics to emit minimally useful events so the
+    reasoning API can still build timelines, contradictions, and weaknesses
+    during local development.
+    """
+    events: list[Event] = []
+    seen_actions: set[str] = set()
+
+    for sentence in _FALLBACK_SENTENCE_SPLIT.split(text):
+        normalized = " ".join(sentence.split())
+        if len(normalized) < 40:
+            continue
+
+        actor_match = _ACTOR_PATTERN.search(normalized)
+        actor = actor_match.group(1).strip() if actor_match else "Unknown actor"
+
+        lowered = normalized.lower()
+        if lowered.startswith("opinion ") or lowered.startswith("page "):
+            continue
+
+        action = normalized[:220]
+        if action in seen_actions:
+            continue
+        seen_actions.add(action)
+
+        time_match = _TIME_PATTERN.search(normalized)
+        location_match = _LOCATION_PATTERN.search(normalized)
+
+        event = Event.create_with_generated_id(
+            actor=actor,
+            action=action,
+            source_document=source_document,
+            time=time_match.group(1) if time_match else None,
+            location=location_match.group(1) if location_match else None,
+            confidence=0.55,
+        )
+        events.append(event)
+
+        if len(events) >= 8:
+            break
+
+    return events
+
+
 def extract_events(
     text: str,
     *,
@@ -233,8 +294,8 @@ def extract_events(
     try:
         client = _get_groq_client()
     except ValueError as e:
-        logger.error("Groq client init failed: %s", e)
-        raise
+        logger.warning("Groq client init failed, using fallback extraction: %s", e)
+        return _fallback_extract_events(text, source_document)
 
     try:
         response = client.chat.completions.create(
@@ -255,8 +316,8 @@ def extract_events(
             temperature=0.1,   # lower temperature = more consistent JSON
         )
     except Exception as e:
-        logger.error("Groq API failure: %s", e)
-        raise RuntimeError(f"Groq API failed: {e}") from e
+        logger.warning("Groq API failure, using fallback extraction: %s", e)
+        return _fallback_extract_events(text, source_document)
 
     content = response.choices[0].message.content
     if not content:
@@ -266,13 +327,12 @@ def extract_events(
     try:
         raw_list = _extract_json_array(content)
     except ValueError as e:
-        # Log and continue — don't crash the whole pipeline
         logger.warning(
-            "Skipping document '%s' — could not parse LLM response: %s",
+            "Falling back for document '%s' — could not parse LLM response: %s",
             source_document,
             e,
         )
-        return []
+        return _fallback_extract_events(text, source_document)
 
     events: list[Event] = []
     for raw in raw_list:

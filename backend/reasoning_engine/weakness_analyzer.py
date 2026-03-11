@@ -11,6 +11,12 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def _append_reason(reasons: list[str], reason: str) -> None:
+    """Preserve reason order while avoiding duplicate reason text."""
+    if reason not in reasons:
+        reasons.append(reason)
+
+
 def score_weakness(
     event: dict[str, Any],
     contradictions: list[dict[str, Any]],
@@ -47,38 +53,38 @@ def score_weakness(
         if eid in (c["event1_id"], c["event2_id"]):
             if c["severity"] == "critical":
                 score += 0.40
-                reasons.append(f"critical contradiction: {c['type']}")
+                _append_reason(reasons, f"critical contradiction: {c['type']}")
             elif c["severity"] == "moderate":
                 score += 0.25
-                reasons.append(f"moderate contradiction: {c['type']}")
+                _append_reason(reasons, f"moderate contradiction: {c['type']}")
 
     # Missing time
     time_val = event.get("time")
     if not time_val or str(time_val).lower() in ("null", "unknown", "none", ""):
         score += 0.20
-        reasons.append("missing time")
+        _append_reason(reasons, "missing time")
 
     # Missing location
     loc_val = event.get("location")
     if not loc_val or str(loc_val).lower() in ("null", "unknown", "none", ""):
         score += 0.10
-        reasons.append("missing location")
+        _append_reason(reasons, "missing location")
 
     # Low confidence
     confidence = event.get("confidence", 1.0)
     if confidence < 0.7:
         score += 0.25
-        reasons.append(f"low extraction confidence ({confidence:.2f})")
+        _append_reason(reasons, f"low extraction confidence ({confidence:.2f})")
     elif confidence < 0.8:
         score += 0.10
-        reasons.append(f"moderate extraction confidence ({confidence:.2f})")
+        _append_reason(reasons, f"moderate extraction confidence ({confidence:.2f})")
 
     # Single-source dependency
     source = event.get("source_document")
     source_count = sum(1 for e in all_events if e.get("source_document") == source)
     if source_count == 1:
         score += 0.15
-        reasons.append("only event from this source document")
+        _append_reason(reasons, "only event from this source document")
 
     score = round(min(score, 1.0), 3)
 

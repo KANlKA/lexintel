@@ -20,6 +20,7 @@ Endpoints:
 """
 
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -58,15 +59,44 @@ app.add_middleware(
 _cache: dict[str, Any] = {}
 
 
+def _resolve_dataset_path(dataset_path: str) -> Path:
+    path = Path(dataset_path)
+    if path.exists():
+        return path
+
+    backend_dir = Path(__file__).resolve().parent.parent
+    candidate = backend_dir / dataset_path
+    if candidate.exists():
+        return candidate
+
+    repo_candidate = backend_dir.parent / dataset_path.lstrip("./")
+    if repo_candidate.exists():
+        return repo_candidate
+
+    return path
+
+
 @app.on_event("startup")
 def startup_event():
-    """Initialize DB schema on startup."""
+    """Initialize schema and prewarm analysis cache for local development."""
     try:
         from document_pipeline.database.postgres_client import initialize_schema
         initialize_schema()
         logger.info("Database schema ready.")
     except Exception as e:
         logger.warning("DB init skipped: %s", e)
+
+    preload_enabled = os.getenv("LEXINTEL_PRELOAD_ANALYSIS", "1") != "0"
+    if not preload_enabled or _cache.get("events"):
+        return
+
+    dataset_path = os.getenv("LEXINTEL_DATASET_PATH", "../dataset/text.data.jsonl")
+    limit = int(os.getenv("LEXINTEL_PRELOAD_LIMIT", "3"))
+    try:
+        _run_analysis(dataset_path=dataset_path, limit=limit)
+        logger.info("Preloaded reasoning cache from %s (limit=%d).", dataset_path, limit)
+    except Exception as e:
+        logger.warning("Startup preload skipped: %s", e)
 
 
 # ── Models ───────────────────────────────────────────────────────────────────
@@ -123,46 +153,35 @@ def analyze(request: AnalyzeRequest) -> dict[str, Any]:
     Example body:
         { "dataset_path": "../dataset/text.data.jsonl", "limit": 5 }
     """
-    from document_pipeline.pipeline import process_dataset
-
-    path = Path(request.dataset_path)
-    if not path.exists():
-        backend_dir = Path(__file__).resolve().parent.parent
-        path = backend_dir / request.dataset_path
-
-    if not path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Dataset not found: {request.dataset_path}",
-        )
-
-    # Step 1 — Extract events
     try:
-        events = process_dataset(str(path), limit=request.limit)
+        return _run_analysis(dataset_path=request.dataset_path, limit=request.limit)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.error("Pipeline failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Pipeline error: {e}")
 
-    if not events:
-        raise HTTPException(status_code=422, detail="No events extracted from dataset.")
 
-    # Step 2 — Event graph
+def _run_analysis(dataset_path: str, limit: int) -> dict[str, Any]:
+    from document_pipeline.pipeline import process_dataset
+
+    path = _resolve_dataset_path(dataset_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Dataset not found: {dataset_path}")
+
+    events = process_dataset(str(path), limit=limit)
+    if not events:
+        raise ValueError("No events extracted from dataset.")
+
     graph = EventGraph()
     graph.build(events)
-
-    # Step 3 — Timeline
     timeline = build_timeline(events)
-
-    # Step 4 — Contradictions
     contradictions = detect_contradictions(events)
-
-    # Step 5 — Weaknesses
     weaknesses = analyze_weaknesses(events, contradictions)
-
-    # Step 6 — Persist reasoning results to DB
     _persist_reasoning(contradictions, weaknesses)
 
-    # Store in cache for GET endpoints
     _cache["events"] = events
     _cache["timeline"] = timeline
     _cache["contradictions"] = contradictions

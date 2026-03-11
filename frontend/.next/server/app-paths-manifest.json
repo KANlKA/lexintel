@@ -1,0 +1,9 @@
+{
+  "/api/reasoning/[...path]/route": "app/api/reasoning/[...path]/route.js",
+  "/api/simulation/route": "app/api/simulation/route.js",
+  "/page": "app/page.js",
+  "/timeline/page": "app/timeline/page.js",
+  "/contradictions/page": "app/contradictions/page.js",
+  "/weaknesses/page": "app/weaknesses/page.js",
+  "/simulation/page": "app/simulation/page.js"
+}

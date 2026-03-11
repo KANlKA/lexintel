@@ -6,6 +6,7 @@ Checks for location conflicts, time conflicts, and action impossibilities.
 """
 
 import logging
+import re
 from itertools import combinations
 from typing import Any
 
@@ -29,6 +30,23 @@ def _normalize(value: str | None) -> str | None:
     return v
 
 
+def _normalize_location(value: str | None) -> str | None:
+    """Normalize location phrasing so equivalent places compare equal."""
+    location = _normalize(value)
+    if not location:
+        return None
+
+    location = re.sub(
+        r"^(?:in\s+)?(?:the\s+)?(?:vicinity|area)\s+of\s+",
+        "",
+        location,
+    )
+    location = re.sub(r"^(?:near|around)\s+", "", location)
+    location = re.sub(r"^[^\w]+|[^\w]+$", "", location)
+    location = re.sub(r"\s+", " ", location).strip()
+    return location or None
+
+
 def _times_conflict(t1: str, t2: str) -> bool:
     """
     Return True if two time strings appear to describe the same moment.
@@ -47,8 +65,8 @@ def _times_conflict(t1: str, t2: str) -> bool:
 
 def _locations_conflict(l1: str, l2: str) -> bool:
     """Return True if two locations are both specific and different."""
-    l1n = _normalize(l1)
-    l2n = _normalize(l2)
+    l1n = _normalize_location(l1)
+    l2n = _normalize_location(l2)
     if not l1n or not l2n:
         return False
     return l1n != l2n
