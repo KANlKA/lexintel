@@ -1,5 +1,4 @@
 // src/lib/api.ts
-// All API calls go through Next.js rewrites → localhost:8000
 
 export interface Event {
   event_id: string
@@ -58,10 +57,85 @@ export interface AnalyzeResponse {
   graph: { nodes: number; edges: number }
 }
 
-const BASE = '/api/reasoning'
+export interface CaseProcessResponse {
+  status: string
+  events_extracted: number
+  events: Event[]
+}
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { cache: 'no-store' })
+// ── Case workspace storage (in-memory, survives page navigation) ─────────────
+
+export interface CaseWorkspace {
+  id: string
+  name: string
+  files: string[]
+  createdAt: string
+  analyzed: boolean
+  eventCount: number
+  lastAnalyzedAt?: string
+}
+
+export interface WorkspaceAnalysis {
+  summary: Summary
+  timeline: TimelineEvent[]
+  contradictions: Contradiction[]
+  weaknesses: Weakness[]
+  updatedAt: string
+}
+
+const WORKSPACES_KEY = 'lexintel_workspaces'
+const WORKSPACE_ANALYSIS_KEY = 'lexintel_workspace_analysis'
+
+export function getWorkspaces(): CaseWorkspace[] {
+  if (typeof window === 'undefined') return []
+  try {
+    return JSON.parse(localStorage.getItem(WORKSPACES_KEY) || '[]')
+  } catch {
+    return []
+  }
+}
+
+export function saveWorkspace(ws: CaseWorkspace): void {
+  const all = getWorkspaces().filter(w => w.id !== ws.id)
+  localStorage.setItem(WORKSPACES_KEY, JSON.stringify([ws, ...all]))
+}
+
+export function deleteWorkspace(id: string): void {
+  const all = getWorkspaces().filter(w => w.id !== id)
+  localStorage.setItem(WORKSPACES_KEY, JSON.stringify(all))
+
+  const analysisMap = getWorkspaceAnalysisMap()
+  delete analysisMap[id]
+  localStorage.setItem(WORKSPACE_ANALYSIS_KEY, JSON.stringify(analysisMap))
+}
+
+function getWorkspaceAnalysisMap(): Record<string, WorkspaceAnalysis> {
+  if (typeof window === 'undefined') return {}
+  try {
+    return JSON.parse(localStorage.getItem(WORKSPACE_ANALYSIS_KEY) || '{}')
+  } catch {
+    return {}
+  }
+}
+
+export function getWorkspaceAnalysis(id: string): WorkspaceAnalysis | null {
+  const analysisMap = getWorkspaceAnalysisMap()
+  return analysisMap[id] ?? null
+}
+
+export function saveWorkspaceAnalysis(id: string, analysis: WorkspaceAnalysis): void {
+  const analysisMap = getWorkspaceAnalysisMap()
+  analysisMap[id] = analysis
+  localStorage.setItem(WORKSPACE_ANALYSIS_KEY, JSON.stringify(analysisMap))
+}
+
+// ── API helpers ───────────────────────────────────────────────────────────────
+
+const REASONING = '/api/reasoning'
+const PIPELINE = '/api/pipeline'
+
+async function get<T>(base: string, path: string): Promise<T> {
+  const res = await fetch(`${base}${path}`, { cache: 'no-store' })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.detail || `API error ${res.status}`)
@@ -69,8 +143,9 @@ async function get<T>(path: string): Promise<T> {
   return res.json()
 }
 
+// Dataset analysis (existing flow)
 export async function analyze(datasetPath: string, limit: number): Promise<AnalyzeResponse> {
-  const res = await fetch(`${BASE}/analyze`, {
+  const res = await fetch(`${REASONING}/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ dataset_path: datasetPath, limit }),
@@ -82,9 +157,46 @@ export async function analyze(datasetPath: string, limit: number): Promise<Analy
   return res.json()
 }
 
-export const getEvents        = ()  => get<Event[]>('/events')
-export const getTimeline      = ()  => get<TimelineEvent[]>('/timeline')
-export const getContradictions = () => get<Contradiction[]>('/contradictions')
-export const getWeaknesses    = ()  => get<Weakness[]>('/weaknesses')
-export const getSummary       = ()  => get<Summary>('/summary')
-export const getHealth        = ()  => get<{ status: string }>('/health')
+// ── Case workspace flow ───────────────────────────────────────────────────────
+
+/**
+ * Step 1: Upload files to pipeline -> get events back
+ */
+export async function uploadCaseFiles(files: File[]): Promise<CaseProcessResponse> {
+  const form = new FormData()
+  files.forEach(f => form.append('files', f))
+
+  const res = await fetch(`${PIPELINE}/process/case`, {
+    method: 'POST',
+    body: form,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Upload failed ${res.status}`)
+  }
+  return res.json()
+}
+
+/**
+ * Step 2: Send extracted events to reasoning engine -> get full analysis
+ */
+export async function analyzeEvents(events: Event[]): Promise<AnalyzeResponse> {
+  const res = await fetch(`${REASONING}/analyze/events`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(events),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || `Analysis failed ${res.status}`)
+  }
+  return res.json()
+}
+
+// GET endpoints (same for both dataset and case workspace flows)
+export const getEvents = () => get<Event[]>(REASONING, '/events')
+export const getTimeline = () => get<TimelineEvent[]>(REASONING, '/timeline')
+export const getContradictions = () => get<Contradiction[]>(REASONING, '/contradictions')
+export const getWeaknesses = () => get<Weakness[]>(REASONING, '/weaknesses')
+export const getSummary = () => get<Summary>(REASONING, '/summary')
+export const getHealth = () => get<{ status: string }>(REASONING, '/health')

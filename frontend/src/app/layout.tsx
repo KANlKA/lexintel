@@ -13,9 +13,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <div className="flex min-h-screen">
+        <div className="min-h-screen">
           <Sidebar />
-          <main className="flex-1 ml-60 min-h-screen">
+          <main className="min-h-[calc(100vh-73px)]">
             {children}
           </main>
         </div>

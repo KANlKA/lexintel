@@ -92,6 +92,24 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../src/app/workspace/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/workspace">> = Specific
+  const handler = {} as typeof import("../../src/app/workspace/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/api/pipeline/[...path]/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/pipeline/[...path]">> = Specific
+  const handler = {} as typeof import("../../src/app/api/pipeline/[...path]/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/app/api/reasoning/[...path]/route.ts
 {
   type __IsExpected<Specific extends RouteHandlerConfig<"/api/reasoning/[...path]">> = Specific
