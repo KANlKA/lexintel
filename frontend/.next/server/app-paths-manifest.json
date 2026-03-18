@@ -1,5 +1,6 @@
 {
   "/api/reasoning/[...path]/route": "app/api/reasoning/[...path]/route.js",
+  "/page": "app/page.js",
   "/workspace/page": "app/workspace/page.js",
-  "/page": "app/page.js"
+  "/login/page": "app/login/page.js"
 }

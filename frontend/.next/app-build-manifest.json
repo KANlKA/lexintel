@@ -11,20 +11,20 @@
       "static/chunks/main-app.js",
       "static/chunks/app/page.js"
     ],
-    "/api/reasoning/[...path]/route": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/api/reasoning/[...path]/route.js"
-    ],
     "/workspace/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/workspace/page.js"
     ],
-    "/api/simulation/route": [
+    "/api/reasoning/[...path]/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/simulation/route.js"
+      "static/chunks/app/api/reasoning/[...path]/route.js"
+    ],
+    "/login/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/login/page.js"
     ]
   }
 }

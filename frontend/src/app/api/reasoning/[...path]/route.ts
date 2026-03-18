@@ -49,11 +49,17 @@ async function forwardRequest(
       status: upstreamResponse.status,
       headers: responseHeaders,
     })
-  } catch {
+  } catch (error) {
+    console.error('Reasoning API proxy failed', {
+      targetUrl: targetUrl.toString(),
+      method: request.method,
+      error,
+    })
+
     return NextResponse.json(
       {
         detail:
-          'Reasoning API is unavailable. Start the backend service on http://127.0.0.1:8000.',
+          `Reasoning API is unavailable at ${REASONING_API_BASE}. Start the backend service or set REASONING_API_BASE_URL.`,
       },
       { status: 503 },
     )

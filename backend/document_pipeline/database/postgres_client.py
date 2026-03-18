@@ -22,6 +22,7 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # --- Schema DDL (run once to create tables) ---
+# user_id column is included from the start so RLS works correctly.
 _SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS events (
     event_id        TEXT PRIMARY KEY,
@@ -31,6 +32,7 @@ CREATE TABLE IF NOT EXISTS events (
     location        TEXT,
     source_document TEXT NOT NULL,
     confidence      FLOAT NOT NULL DEFAULT 0.8,
+    user_id         UUID REFERENCES auth.users(id),
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -41,6 +43,7 @@ CREATE TABLE IF NOT EXISTS contradictions (
     type            TEXT NOT NULL,
     description     TEXT,
     severity        TEXT DEFAULT 'moderate',
+    user_id         UUID REFERENCES auth.users(id),
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -50,6 +53,7 @@ CREATE TABLE IF NOT EXISTS timeline (
     parsed_time     TEXT,
     time_uncertain  BOOLEAN DEFAULT FALSE,
     position        INT,
+    user_id         UUID REFERENCES auth.users(id),
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -58,8 +62,37 @@ CREATE TABLE IF NOT EXISTS weakness_scores (
     event_id        TEXT REFERENCES events(event_id),
     weakness_score  FLOAT NOT NULL,
     reasons         TEXT[],
+    user_id         UUID REFERENCES auth.users(id),
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE events          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contradictions  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE timeline        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE weakness_scores ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'events' AND policyname = 'own events'
+  ) THEN
+    CREATE POLICY "own events" ON events FOR ALL USING (auth.uid() = user_id);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'contradictions' AND policyname = 'own contradictions'
+  ) THEN
+    CREATE POLICY "own contradictions" ON contradictions FOR ALL USING (auth.uid() = user_id);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'timeline' AND policyname = 'own timeline'
+  ) THEN
+    CREATE POLICY "own timeline" ON timeline FOR ALL USING (auth.uid() = user_id);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'weakness_scores' AND policyname = 'own weaknesses'
+  ) THEN
+    CREATE POLICY "own weaknesses" ON weakness_scores FOR ALL USING (auth.uid() = user_id);
+  END IF;
+END $$;
 """
 
 
@@ -104,6 +137,7 @@ def get_connection(connection_string: str | None = None) -> Generator[Any, None,
 def initialize_schema(connection_string: str | None = None) -> None:
     """
     Create all required tables if they don't exist.
+    Safe to call multiple times — uses IF NOT EXISTS and DO $$ blocks.
     Call this once on startup.
     """
     with get_connection(connection_string) as conn:
@@ -116,6 +150,7 @@ def insert_event(
     connection: Any,
     event: dict[str, Any],
     document_id: str | None = None,
+    user_id: str | None = None,
 ) -> str | None:
     """
     Insert an extracted event into the events table.
@@ -124,13 +159,14 @@ def insert_event(
         connection: Active psycopg2 connection.
         event: Event dict with event_id, actor, action, etc.
         document_id: Optional override for source_document.
+        user_id: Optional Supabase user UUID for RLS.
 
     Returns:
         event_id string if inserted, None on duplicate.
     """
     sql = """
-        INSERT INTO events (event_id, actor, action, time, location, source_document, confidence)
-        VALUES (%(event_id)s, %(actor)s, %(action)s, %(time)s, %(location)s, %(source_document)s, %(confidence)s)
+        INSERT INTO events (event_id, actor, action, time, location, source_document, confidence, user_id)
+        VALUES (%(event_id)s, %(actor)s, %(action)s, %(time)s, %(location)s, %(source_document)s, %(confidence)s, %(user_id)s)
         ON CONFLICT (event_id) DO NOTHING
         RETURNING event_id;
     """
@@ -142,6 +178,7 @@ def insert_event(
         "location": event.get("location"),
         "source_document": document_id or event.get("source_document", ""),
         "confidence": event.get("confidence", 0.8),
+        "user_id": user_id,
     }
     with connection.cursor() as cur:
         cur.execute(sql, row)
@@ -153,14 +190,16 @@ def insert_events_batch(
     connection: Any,
     events: list[dict[str, Any]],
     document_id: str | None = None,
+    user_id: str | None = None,
 ) -> list[str | None]:
     """
-    Insert multiple events efficiently using executemany.
+    Insert multiple events efficiently.
 
     Args:
         connection: Active psycopg2 connection.
         events: List of event dicts.
         document_id: Optional override for source_document.
+        user_id: Optional Supabase user UUID for RLS.
 
     Returns:
         List of inserted event_ids (None for duplicates).
@@ -169,8 +208,8 @@ def insert_events_batch(
         return []
 
     sql = """
-        INSERT INTO events (event_id, actor, action, time, location, source_document, confidence)
-        VALUES (%(event_id)s, %(actor)s, %(action)s, %(time)s, %(location)s, %(source_document)s, %(confidence)s)
+        INSERT INTO events (event_id, actor, action, time, location, source_document, confidence, user_id)
+        VALUES (%(event_id)s, %(actor)s, %(action)s, %(time)s, %(location)s, %(source_document)s, %(confidence)s, %(user_id)s)
         ON CONFLICT (event_id) DO NOTHING
         RETURNING event_id;
     """
@@ -183,6 +222,7 @@ def insert_events_batch(
             "location": e.get("location"),
             "source_document": document_id or e.get("source_document", ""),
             "confidence": e.get("confidence", 0.8),
+            "user_id": user_id,
         }
         for e in events
     ]
@@ -196,30 +236,40 @@ def insert_events_batch(
     return ids
 
 
-def insert_contradiction(connection: Any, contradiction: dict[str, Any]) -> int | None:
+def insert_contradiction(
+    connection: Any,
+    contradiction: dict[str, Any],
+    user_id: str | None = None,
+) -> int | None:
     """Insert a detected contradiction."""
     sql = """
-        INSERT INTO contradictions (event1_id, event2_id, type, description, severity)
-        VALUES (%(event1_id)s, %(event2_id)s, %(type)s, %(description)s, %(severity)s)
+        INSERT INTO contradictions (event1_id, event2_id, type, description, severity, user_id)
+        VALUES (%(event1_id)s, %(event2_id)s, %(type)s, %(description)s, %(severity)s, %(user_id)s)
         RETURNING id;
     """
+    row = {**contradiction, "user_id": user_id}
     with connection.cursor() as cur:
-        cur.execute(sql, contradiction)
+        cur.execute(sql, row)
         result = cur.fetchone()
         return result[0] if result else None
 
 
-def insert_weakness(connection: Any, weakness: dict[str, Any]) -> int | None:
+def insert_weakness(
+    connection: Any,
+    weakness: dict[str, Any],
+    user_id: str | None = None,
+) -> int | None:
     """Insert a weakness score record."""
     sql = """
-        INSERT INTO weakness_scores (event_id, weakness_score, reasons)
-        VALUES (%(event_id)s, %(weakness_score)s, %(reasons)s)
+        INSERT INTO weakness_scores (event_id, weakness_score, reasons, user_id)
+        VALUES (%(event_id)s, %(weakness_score)s, %(reasons)s, %(user_id)s)
         RETURNING id;
     """
     row = {
         "event_id": weakness.get("event_id"),
         "weakness_score": weakness.get("weakness_score", 0.0),
         "reasons": weakness.get("reasons", []),
+        "user_id": user_id,
     }
     with connection.cursor() as cur:
         cur.execute(sql, row)

@@ -50,11 +50,17 @@ async function forwardRequest(
       status: upstreamResponse.status,
       headers: responseHeaders,
     })
-  } catch {
+  } catch (error) {
+    console.error('Pipeline API proxy failed', {
+      targetUrl: targetUrl.toString(),
+      method: request.method,
+      error,
+    })
+
     return NextResponse.json(
       {
         detail:
-          'Document pipeline API is unavailable. Start the backend service on http://127.0.0.1:8001.',
+          `Document pipeline API is unavailable at ${PIPELINE_API_BASE}. Start the backend service or set PIPELINE_API_BASE_URL.`,
       },
       { status: 503 },
     )
