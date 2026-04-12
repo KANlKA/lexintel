@@ -1,4 +1,4 @@
-# ⚖️ LexIntel
+# LexIntel
 
 **LexIntel** is an AI-powered litigation intelligence system designed to transform **unstructured legal documents into structured, actionable case events**.
 
@@ -13,7 +13,7 @@ This enables downstream capabilities such as:
 
 ---
 
-# 🚀 Overview: Current Module (Document Processing & Event Extraction)
+# Overview: Current Module (Document Processing & Event Extraction)
 
 The current repository implements the **Document Processing and Event Extraction pipeline**.
 
@@ -46,7 +46,7 @@ This module converts raw legal documents into a structured schema of events that
 
 ---
 
-# 📊 Data Schema
+# Data Schema
 
 Each extracted event follows the structure below.
 
@@ -86,7 +86,7 @@ Example JSON representation:
 
 ---
 
-# 🛠️ Tech Stack
+# Tech Stack
 
 ### Programming Language
 
@@ -111,7 +111,7 @@ Example JSON representation:
 
 ---
 
-# ⚙️ Installation & Setup
+# Installation & Setup
 
 ## Prerequisites
 
@@ -180,7 +180,7 @@ The pipeline will:
 
 ---
 
-# 🗺️ Project Roadmap
+# Project Roadmap
 
 The **Document Processing & Event Extraction module** is complete.
 
@@ -206,7 +206,7 @@ Future development will expand the system into a full litigation intelligence pl
 
 ---
 
-# 📄 License
+# License
 
 This project is currently under development and intended for **research and educational use**.
 
