@@ -66,6 +66,16 @@ CREATE TABLE IF NOT EXISTS weakness_scores (
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS case_analyses (
+    case_id         TEXT PRIMARY KEY,
+    events          JSONB NOT NULL DEFAULT '[]'::jsonb,
+    timeline        JSONB NOT NULL DEFAULT '[]'::jsonb,
+    contradictions  JSONB NOT NULL DEFAULT '[]'::jsonb,
+    weaknesses      JSONB NOT NULL DEFAULT '[]'::jsonb,
+    summary         JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
 ALTER TABLE events          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE contradictions  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE timeline        ENABLE ROW LEVEL SECURITY;
@@ -289,3 +299,61 @@ def fetch_contradictions(connection: Any) -> list[dict[str, Any]]:
     with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
         cur.execute("SELECT * FROM contradictions ORDER BY severity DESC;")
         return [dict(row) for row in cur.fetchall()]
+
+
+def upsert_case_analysis(
+    connection: Any,
+    case_id: str,
+    events: list[dict[str, Any]],
+    timeline: list[dict[str, Any]],
+    contradictions: list[dict[str, Any]],
+    weaknesses: list[dict[str, Any]],
+    summary: dict[str, Any],
+) -> None:
+    """Persist a full analysis snapshot keyed by case ID."""
+    sql = """
+        INSERT INTO case_analyses (
+            case_id, events, timeline, contradictions, weaknesses, summary, updated_at
+        )
+        VALUES (
+            %(case_id)s,
+            %(events)s::jsonb,
+            %(timeline)s::jsonb,
+            %(contradictions)s::jsonb,
+            %(weaknesses)s::jsonb,
+            %(summary)s::jsonb,
+            NOW()
+        )
+        ON CONFLICT (case_id) DO UPDATE SET
+            events = EXCLUDED.events,
+            timeline = EXCLUDED.timeline,
+            contradictions = EXCLUDED.contradictions,
+            weaknesses = EXCLUDED.weaknesses,
+            summary = EXCLUDED.summary,
+            updated_at = NOW();
+    """
+    with connection.cursor() as cur:
+        cur.execute(
+            sql,
+            {
+                "case_id": case_id,
+                "events": psycopg2.extras.Json(events),
+                "timeline": psycopg2.extras.Json(timeline),
+                "contradictions": psycopg2.extras.Json(contradictions),
+                "weaknesses": psycopg2.extras.Json(weaknesses),
+                "summary": psycopg2.extras.Json(summary),
+            },
+        )
+
+
+def fetch_case_analysis(connection: Any, case_id: str) -> dict[str, Any] | None:
+    """Fetch a full analysis snapshot by case ID."""
+    sql = """
+        SELECT case_id, events, timeline, contradictions, weaknesses, summary, updated_at
+        FROM case_analyses
+        WHERE case_id = %s;
+    """
+    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(sql, (case_id,))
+        row = cur.fetchone()
+        return dict(row) if row else None

@@ -134,8 +134,14 @@ export function saveWorkspaceAnalysis(id: string, analysis: WorkspaceAnalysis): 
 const REASONING = '/api/reasoning'
 const PIPELINE = '/api/pipeline'
 
-async function get<T>(base: string, path: string): Promise<T> {
-  const res = await fetch(`${base}${path}`, { cache: 'no-store' })
+function withCaseId(path: string, caseId?: string): string {
+  if (!caseId) return path
+  const separator = path.includes('?') ? '&' : '?'
+  return `${path}${separator}case_id=${encodeURIComponent(caseId)}`
+}
+
+async function get<T>(base: string, path: string, caseId?: string): Promise<T> {
+  const res = await fetch(`${base}${withCaseId(path, caseId)}`, { cache: 'no-store' })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.detail || `API error ${res.status}`)
@@ -180,8 +186,8 @@ export async function uploadCaseFiles(files: File[]): Promise<CaseProcessRespons
 /**
  * Step 2: Send extracted events to reasoning engine -> get full analysis
  */
-export async function analyzeEvents(events: Event[]): Promise<AnalyzeResponse> {
-  const res = await fetch(`${REASONING}/analyze/events`, {
+export async function analyzeEvents(events: Event[], caseId?: string): Promise<AnalyzeResponse> {
+  const res = await fetch(`${REASONING}${withCaseId('/analyze/events', caseId)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(events),
@@ -194,9 +200,9 @@ export async function analyzeEvents(events: Event[]): Promise<AnalyzeResponse> {
 }
 
 // GET endpoints (same for both dataset and case workspace flows)
-export const getEvents = () => get<Event[]>(REASONING, '/events')
-export const getTimeline = () => get<TimelineEvent[]>(REASONING, '/timeline')
-export const getContradictions = () => get<Contradiction[]>(REASONING, '/contradictions')
-export const getWeaknesses = () => get<Weakness[]>(REASONING, '/weaknesses')
-export const getSummary = () => get<Summary>(REASONING, '/summary')
+export const getEvents = (caseId?: string) => get<Event[]>(REASONING, '/events', caseId)
+export const getTimeline = (caseId?: string) => get<TimelineEvent[]>(REASONING, '/timeline', caseId)
+export const getContradictions = (caseId?: string) => get<Contradiction[]>(REASONING, '/contradictions', caseId)
+export const getWeaknesses = (caseId?: string) => get<Weakness[]>(REASONING, '/weaknesses', caseId)
+export const getSummary = (caseId?: string) => get<Summary>(REASONING, '/summary', caseId)
 export const getHealth = () => get<{ status: string }>(REASONING, '/health')

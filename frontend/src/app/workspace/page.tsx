@@ -279,12 +279,12 @@ export default function WorkspacePage() {
     )
   }
 
-  async function fetchAnalysisSnapshot(): Promise<WorkspaceAnalysis> {
+  async function fetchAnalysisSnapshot(caseId: string): Promise<WorkspaceAnalysis> {
     const [summary, timeline, contradictions, weaknesses] = await Promise.all([
-      getSummary(),
-      getTimeline(),
-      getContradictions(),
-      getWeaknesses(),
+      getSummary(caseId),
+      getTimeline(caseId),
+      getContradictions(caseId),
+      getWeaknesses(caseId),
     ])
 
     return {
@@ -328,13 +328,13 @@ export default function WorkspacePage() {
       }
 
       log('Running reasoning on extracted events...')
-      const analysis: AnalyzeResponse = await analyzeEvents(extracted.events)
+      const analysis: AnalyzeResponse = await analyzeEvents(extracted.events, currentWorkspace.id)
       log(`Built graph with ${analysis.graph.nodes} nodes and ${analysis.graph.edges} edges`)
       log(`Detected ${analysis.contradictions_found} contradiction(s)`)
       log(`Scored ${analysis.weaknesses_scored} weakness record(s)`)
 
       log('Loading workspace views...')
-      const snapshot = await fetchAnalysisSnapshot()
+      const snapshot = await fetchAnalysisSnapshot(currentWorkspace.id)
 
       const mergedFiles = Array.from(new Set([
         ...detail.workspace.files,

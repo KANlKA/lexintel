@@ -2,5 +2,7 @@
   "/api/reasoning/[...path]/route": "app/api/reasoning/[...path]/route.js",
   "/page": "app/page.js",
   "/workspace/page": "app/workspace/page.js",
-  "/login/page": "app/login/page.js"
+  "/contradictions/page": "app/contradictions/page.js",
+  "/login/page": "app/login/page.js",
+  "/timeline/page": "app/timeline/page.js"
 }
