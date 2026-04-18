@@ -12,6 +12,8 @@ import logging
 from itertools import combinations
 from typing import Any
 
+from reasoning_engine.contradiction_detector import detect_contradictions
+
 logger = logging.getLogger(__name__)
 
 _SKIP_ACTORS = {
@@ -21,6 +23,17 @@ _SKIP_ACTORS = {
 
 # Lazy-load model so import doesn't block startup
 _model = None
+
+
+def _cosine_similarity(vec1, vec2) -> float:
+    """Return cosine similarity for two embedding vectors."""
+    dot = sum(float(a) * float(b) for a, b in zip(vec1, vec2))
+    norm1 = sum(float(a) * float(a) for a in vec1) ** 0.5
+    norm2 = sum(float(b) * float(b) for b in vec2) ** 0.5
+    if not norm1 or not norm2:
+        return 0.0
+    return dot / (norm1 * norm2)
+
 
 def _get_model():
     global _model
@@ -53,13 +66,20 @@ def detect_contradictions_embedding(
     Returns:
         List of contradiction dicts with approach='embedding'.
     """
-    from sklearn.metrics.pairwise import cosine_similarity
-    import numpy as np
-
     if not events:
         return []
 
-    model = _get_model()
+    try:
+        model = _get_model()
+    except ImportError as exc:
+        logger.warning(
+            "[Embedding] sentence-transformers unavailable, using rule fallback: %s",
+            exc,
+        )
+        fallback = detect_contradictions(events)
+        for item in fallback:
+            item["approach"] = "embedding_fallback"
+        return fallback
 
     # Group events by actor
     by_actor: dict[str, list[dict]] = {}
@@ -96,10 +116,7 @@ def detect_contradictions_embedding(
             idx1 = id_to_idx[e1["event_id"]]
             idx2 = id_to_idx[e2["event_id"]]
 
-            sim = float(cosine_similarity(
-                [embeddings[idx1]],
-                [embeddings[idx2]]
-            )[0][0])
+            sim = float(_cosine_similarity(embeddings[idx1], embeddings[idx2]))
 
             if sim < similarity_threshold:
                 severity = "critical" if sim < 0.15 else "moderate"

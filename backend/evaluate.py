@@ -112,6 +112,14 @@ def run_evaluation():
     for e in all_events:
         events_by_case.setdefault(e["source_document"], []).append(e)
 
+    # Allow hand-labelled fixtures to carry their own stable events. This is
+    # useful because pipeline-generated event IDs are UUID4 values and will
+    # otherwise change between ground-truth generation and evaluation runs.
+    for case_data in ground_truth:
+        embedded_events = case_data.get("events", [])
+        if embedded_events:
+            events_by_case[case_data["case_id"]] = embedded_events
+
     # Per-case results
     case_results: list[dict] = []
 
