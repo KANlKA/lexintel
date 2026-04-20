@@ -1,0 +1,22 @@
+{
+  "total_events": 708,
+  "estimated_correct": 638,
+  "estimated_precision_percent": 90.11299435028248,
+  "by_confidence": {
+    "high": {
+      "count": 34,
+      "correct": 34,
+      "precision": 100.0
+    },
+    "medium": {
+      "count": 649,
+      "correct": 604,
+      "precision": 93.0662557781202
+    },
+    "low": {
+      "count": 25,
+      "correct": 0,
+      "precision": 0.0
+    }
+  }
+}

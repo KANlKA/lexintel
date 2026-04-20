@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LexIntel Ground Truth Annotation</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 1400px; margin: 0 auto; padding: 20px; background: #f0f2f5; }
+        h1 { color: #2c3e50; }
+        .instructions { background: #e8f4f8; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3498db; }
+        .stats-bar { background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .case { background: white; margin: 20px 0; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .case-header { background: #2c3e50; color: white; padding: 15px; border-radius: 8px 8px 0 0; cursor: pointer; }
+        .case-header:hover { background: #34495e; }
+        .case-content { padding: 20px; display: none; }
+        .case-content.active { display: block; }
+        .original-text { background: #fef9e7; padding: 15px; margin-bottom: 20px; border-left: 4px solid #f39c12; border-radius: 4px; font-family: monospace; font-size: 14px; line-height: 1.6; max-height: 400px; overflow-y: auto; }
+        .original-text h4 { margin-top: 0; color: #e67e22; }
+        .events-section { margin-top: 20px; }
+        .event { background: #f8f9fa; margin: 15px 0; padding: 15px; border-left: 4px solid #3498db; border-radius: 4px; }
+        .event.correct { border-left-color: #27ae60; background: #e8f5e9; }
+        .event.incorrect { border-left-color: #e74c3c; background: #fdecea; }
+        .event-field { display: inline-block; margin: 5px 8px; padding: 4px 10px; background: white; border-radius: 4px; font-size: 14px; }
+        .event-field strong { color: #2c3e50; }
+        .guidelines { background: #e8f4f8; padding: 10px; margin: 10px 0; border-radius: 4px; font-size: 13px; }
+        button { margin: 5px; padding: 6px 12px; cursor: pointer; border: none; border-radius: 4px; font-size: 13px; }
+        .btn-correct { background: #27ae60; color: white; }
+        .btn-correct:hover { background: #229954; }
+        .btn-incorrect { background: #e74c3c; color: white; }
+        .btn-incorrect:hover { background: #c0392b; }
+        .btn-save { background: #3498db; color: white; padding: 12px 24px; font-size: 16px; margin-top: 20px; }
+        .btn-save:hover { background: #2980b9; }
+        .annotation-status { font-size: 12px; margin-top: 8px; color: #7f8c8d; }
+        .toggle-icon { float: right; font-size: 20px; }
+        .confidence { font-size: 11px; color: #7f8c8d; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <h1>📝 LexIntel Ground Truth Annotation</h1>
+    
+    <div class="instructions">
+        <strong>📖 How to Judge Correct/Incorrect:</strong>
+        <ul>
+            <li><strong>✓ CORRECT</strong> = The extracted information matches what's in the original document text</li>
+            <li><strong>✗ INCORRECT</strong> = The extraction is wrong, missing, or hallucinated</li>
+        </ul>
+        <strong>Example:</strong> If document says "defendant ran away at 10 PM" and event shows actor="defendant", action="ran away", time="10 PM" → ✓ CORRECT<br>
+        If document says one thing but event shows something else → ✗ INCORRECT
+    </div>
+    
+    <div class="stats-bar" id="stats">Loading...</div>
+    
+    <div id="cases-container"></div>
+    
+    <div style="text-align: center;">
+        <button class="btn-save" onclick="saveAllAnnotations()">💾 Download Ground Truth (JSON)</button>
+    </div>
+
+    <script>
+        const casesData = [{"id": "435775", "events": [{"event_id": "dfd86f33-76bd-4b59-a661-ddf91d27ee1e", "actor": "Chief Justice Reynolds", "action": "delivered opinion", "time": null, "location": null, "confidence": 0.7}, {"event_id": "57d538c8-ff2c-418e-9c59-85f1dfbcfbc1", "actor": "parties", "action": "gave consent", "time": null, "location": null, "confidence": 0.7}, {"event_id": "76301e3a-b65c-4ac3-9c1e-9e8e4eb09716", "actor": "court", "action": "entered judgment", "time": null, "location": null, "confidence": 0.7}, {"event_id": "604f3b4e-2bf1-4675-91b9-39b417dc1de3", "actor": "court", "action": "affirmed judgment", "time": null, "location": null, "confidence": 0.7}, {"event_id": "e5fe62cd-debd-42a4-ae64-15c4ceef0a85", "actor": "Young v. Grundy", "action": "ruled", "time": null, "location": null, "confidence": 0.7}, {"event_id": "22dd2cb8-80d8-4938-8d7e-34ca1b9d4bf3", "actor": "Pentecost et al. v. Magahee", "action": "ruled", "time": null, "location": null, "confidence": 0.7}, {"event_id": "6f116b4e-b559-4d6a-a1ca-2d415f4321af", "actor": "Fleece v. Russell et al.", "action": "ruled", "time": null, "location": null, "confidence": 0.7}, {"event_id": "c3f13c01-9364-44d4-8ec6-0ba14936cb50", "actor": "Hayes v. Caldwell", "action": "ruled", "time": null, "location": null, "confidence": 0.7}, {"event_id": "a11c7fd1-5576-4b2f-98e1-fd40990ba9f5", "actor": "Woodside v. Woodside", "action": "ruled", "time": null, "location": null, "confidence": 0.7}, {"event_id": "31f76af0-f438-4096-80e0-9a96e14d1622", "actor": "The People v. Scates", "action": "ruled", "time": null, "location": null, "confidence": 0.7}, {"event_id": "c73365f2-989a-4350-a0b0-3bd10d2a7b1d", "actor": "Foley v. People", "action": "ruled", "time": null, "location": null, "confidence": 0.7}, {"event_id": "aaeeb9cf-c054-4268-95b9-87e9bc1060c2", "actor": "Allen v. Belcher", "action": "ruled", "time": null, "location": null, "confidence": 0.7}, {"event_id": "2bde2b51-0307-445c-92d6-35a191bf4e82", "actor": "Ginn et al. v. Rogers", "action": "ruled", "time": null, "location": null, "confidence": 0.7}, {"event_id": "8b1e51ff-4648-42d3-8dca-5089f6db450f", "actor": "Williams v. Blankenship", "action": "ruled", "time": null, "location": null, "confidence": 0.7}, {"event_id": "a0aa5559-68d2-463d-9fcf-c1eae6767735", "actor": "Randolph County v. Ralls", "action": "ruled", "time": null, "location": null, "confidence": 0.7}, {"event_id": "64bea968-f7a7-477f-ab25-27c869e2c3e6", "actor": "court", "action": "applied Constitution of 1818", "time": null, "location": null, "confidence": 0.7}, {"event_id": "0342b8ee-eb9d-463f-8125-b580c8b2fa0c", "actor": "court", "action": "applied Constitution of 1818", "time": null, "location": null, "confidence": 0.7}, {"event_id": "0bc7168a-010e-405b-bd95-c9eb3ab3c582", "actor": "Caton, C. J.", "action": "stated opinion", "time": null, "location": null, "confidence": 0.7}, {"event_id": "bc59a325-d0de-40cd-a48c-7a97c04446a5", "actor": "court", "action": "stated opinion", "time": null, "location": null, "confidence": 0.7}], "num_events": 19, "original_text": "Original text not available"}, {"id": "435602", "events": [{"event_id": "badca522-cf2a-4b48-81e6-025a19a338e6", "actor": "Justice Smith", "action": "rendered opinion", "time": null, "location": null, "confidence": 0.7}, {"event_id": "42ca7621-fbd7-4705-831a-41150bc0b91d", "actor": "appellant", "action": "applied for new trial", "time": null, "location": null, "confidence": 0.7}, {"event_id": "34a25dac-cd35-4919-b499-c6816713476c", "actor": "appellant", "action": "cited grounds for new trial", "time": null, "location": null, "confidence": 0.7}, {"event_id": "92ebb51e-98d9-4f97-9c86-160571c50614", "actor": "court", "action": "refused new trial", "time": null, "location": null, "confidence": 0.7}, {"event_id": "03d4c536-1d08-4434-aa95-82d93ec3d15e", "actor": "clerk", "action": "incorporated affidavit in record", "time": null, "location": null, "confidence": 0.7}, {"event_id": "1a2f85ac-8b67-43b6-b068-6320d625ee96", "actor": "court", "action": "affirmed judgment", "time": null, "location": null, "confidence": 0.7}, {"event_id": "47cb7b34-c319-4bb0-bc34-c8a31b67b38e", "actor": "Justice Smith", "action": "cited precedent", "time": null, "location": null, "confidence": 0.7}, {"event_id": "1e9abee6-da0a-40f1-ae9f-2ace85eed067", "actor": "Justice Smith", "action": "referenced cases", "time": null, "location": null, "confidence": 0.7}], "num_events": 8, "original_text": "Original text not available"}, {"id": "435537", "events": [{"event_id": "383ed9ee-5dbd-4bd8-89c0-bb10ba03ad6d", "actor": "The court", "action": "Considered the first point", "time": null, "location": null, "confidence": 0.7}, {"event_id": "6c035226-2fef-425d-a9e1-f0c3c0d2168f", "actor": "The law", "action": "Makes it necessary to have common certainty in every indictment", "time": null, "location": null, "confidence": 0.7}, {"event_id": "6a91db66-9621-4643-b52d-bdc7ac4caca3", "actor": "The court", "action": "Found the year could not be gathered from the indictment", "time": null, "location": null, "confidence": 0.7}, {"event_id": "9082a0f9-f50e-4f47-9412-72eefd829c5b", "actor": "The court", "action": "Declared the indictment defective", "time": null, "location": null, "confidence": 0.7}, {"event_id": "2df45284-7de2-402e-96b9-bf9854763fc4", "actor": "The constitution", "action": "Prescribed a certain form to be used in legal proceedings", "time": null, "location": null, "confidence": 0.7}, {"event_id": "1324e35f-d8d6-4159-87dc-7a88780e14f3", "actor": "The court", "action": "Found the indictment did not pursue the prescribed form", "time": null, "location": null, "confidence": 0.7}, {"event_id": "68eed24b-100a-4e85-8f53-70146027a3cd", "actor": "The court", "action": "Declared the indictment bad", "time": null, "location": null, "confidence": 0.7}, {"event_id": "f0a7e9a5-c7d5-4df6-87bf-49d2f1b2e2e3", "actor": "The court", "action": "Considered the third point", "time": null, "location": null, "confidence": 0.7}, {"event_id": "213711c7-5ca0-4e08-a74f-531fa7cb022b", "actor": "The court", "action": "Found the charge in the indictment too vague and uncertain", "time": null, "location": null, "confidence": 0.7}, {"event_id": "fb79afd8-4cc3-4e33-897e-e898efc336a4", "actor": "The court", "action": "Declared the indictment defective", "time": null, "location": null, "confidence": 0.7}, {"event_id": "b9452ff4-dcea-42dc-85ef-21705c60f8c3", "actor": "The court", "action": "Reversed the judgment of the court below", "time": null, "location": null, "confidence": 0.7}, {"event_id": "7633a75c-1e67-4f51-956e-44dd4d874a67", "actor": "Archbold", "action": "Provided that a day certain must be stated in an indictment", "time": null, "location": null, "confidence": 0.7}, {"event_id": "24a03f16-9a3f-4be9-8390-872d1becf960", "actor": "The criminal code of 1827", "action": "Provided that all exceptions which go merely to the form of an indictment shall be made before trial", "time": null, "location": null, "confidence": 0.7}], "num_events": 13, "original_text": "Original text not available"}];
+        let annotations = {};
+        
+        function calculateStats() {
+            let totalAnnotated = Object.keys(annotations).length;
+            let totalCorrect = Object.values(annotations).filter(v => v === true).length;
+            let totalEvents = 0;
+            for (let case_ of casesData) {
+                totalEvents += case_.events.length;
+            }
+            let percentComplete = totalEvents > 0 ? (totalAnnotated / totalEvents * 100).toFixed(1) : 0;
+            let precision = totalAnnotated > 0 ? (totalCorrect / totalAnnotated * 100).toFixed(1) : 0;
+            
+            document.getElementById('stats').innerHTML = `
+                <strong>📊 Progress:</strong> ${totalAnnotated}/${totalEvents} events annotated (${percentComplete}%)<br>
+                <strong>✅ Correct:</strong> ${totalCorrect} &nbsp;|&nbsp;
+                <strong>❌ Incorrect:</strong> ${totalAnnotated - totalCorrect} &nbsp;|&nbsp;
+                <strong>📈 Current Precision:</strong> ${precision}%
+            `;
+        }
+        
+        function toggleCase(caseId) {
+            const content = document.getElementById(`case-content-${caseId}`);
+            content.classList.toggle('active');
+            const icon = document.getElementById(`toggle-icon-${caseId}`);
+            if (content.classList.contains('active')) {
+                icon.textContent = '▼';
+            } else {
+                icon.textContent = '▶';
+            }
+        }
+        
+        function annotateEvent(caseId, eventIdx, isCorrect) {
+            const key = `${caseId}_${eventIdx}`;
+            annotations[key] = isCorrect;
+            
+            const eventDiv = document.getElementById(`event-${caseId}-${eventIdx}`);
+            if (isCorrect) {
+                eventDiv.classList.add('correct');
+                eventDiv.classList.remove('incorrect');
+            } else {
+                eventDiv.classList.add('incorrect');
+                eventDiv.classList.remove('correct');
+            }
+            
+            const statusSpan = document.getElementById(`status-${caseId}-${eventIdx}`);
+            if (isCorrect) {
+                statusSpan.innerHTML = '✓ Marked as correct';
+            } else {
+                statusSpan.innerHTML = '✗ Marked as incorrect';
+            }
+            
+            calculateStats();
+        }
+        
+        function renderCases() {
+            let html = '';
+            
+            for (let case_ of casesData) {
+                // Truncate text if too long
+                let displayText = case_.original_text;
+                if (displayText.length > 2000) {
+                    displayText = displayText.substring(0, 2000) + '...';
+                }
+                
+                html += `
+                    <div class="case">
+                        <div class="case-header" onclick="toggleCase('${case_.id}')">
+                            <strong>📁 Case ID: ${case_.id}</strong>
+                            <span class="toggle-icon" id="toggle-icon-${case_.id}">▶</span>
+                            <div style="font-size: 12px; margin-top: 5px;">${case_.events.length} events to annotate</div>
+                        </div>
+                        <div class="case-content" id="case-content-${case_.id}">
+                            <div class="original-text">
+                                <h4>📄 Original Document Text (Reference):</h4>
+                                <div>${displayText.replace(/\n/g, '<br>')}</div>
+                            </div>
+                            <div class="events-section">
+                                <h3>🎯 Extracted Events (Judge each against the text above):</h3>
+                `;
+                
+                for (let i = 0; i < case_.events.length; i++) {
+                    const event = case_.events[i];
+                    const key = `${case_.id}_${i}`;
+                    const isAnnotated = annotations[key] !== undefined;
+                    const isCorrect = annotations[key] === true;
+                    let statusClass = '';
+                    if (isAnnotated) {
+                        statusClass = isCorrect ? 'correct' : 'incorrect';
+                    }
+                    
+                    html += `
+                        <div class="event ${statusClass}" id="event-${case_.id}-${i}">
+                            <div><strong>Event ${i + 1}:</strong></div>
+                            <div class="event-field"><strong>👤 Actor:</strong> ${event.actor}</div>
+                            <div class="event-field"><strong>⚡ Action:</strong> ${event.action}</div>
+                            <div class="event-field"><strong>⏰ Time:</strong> ${event.time}</div>
+                            <div class="event-field"><strong>📍 Location:</strong> ${event.location}</div>
+                            <div class="confidence"><strong>🤖 LLM Confidence:</strong> ${(event.confidence * 100).toFixed(1)}%</div>
+                            <div>
+                                <button class="btn-correct" onclick="annotateEvent('${case_.id}', ${i}, true)">✓ Correct - Matches document</button>
+                                <button class="btn-incorrect" onclick="annotateEvent('${case_.id}', ${i}, false)">✗ Incorrect - Doesn't match document</button>
+                            </div>
+                            <div class="annotation-status" id="status-${case_.id}-${i}">
+                    `;
+                    
+                    if (isAnnotated) {
+                        if (isCorrect) {
+                            html += '✓ Marked as correct (matches document)';
+                        } else {
+                            html += '✗ Marked as incorrect (does not match document)';
+                        }
+                    } else {
+                        html += '⏳ Not yet judged - compare with document text above';
+                    }
+                    
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                html += `</div></div></div>`;
+            }
+            
+            document.getElementById('cases-container').innerHTML = html;
+            calculateStats();
+        }
+        
+        function saveAllAnnotations() {
+            const results = {
+                timestamp: new Date().toISOString(),
+                total_cases: casesData.length,
+                cases: []
+            };
+            
+            for (let case_ of casesData) {
+                const caseAnnotations = {
+                    case_id: case_.id,
+                    total_events: case_.events.length,
+                    annotated_events: [],
+                    correct_events: [],
+                    incorrect_events: []
+                };
+                
+                for (let i = 0; i < case_.events.length; i++) {
+                    const key = `${case_.id}_${i}`;
+                    if (annotations[key] !== undefined) {
+                        const event = case_.events[i];
+                        const isCorrect = annotations[key];
+                        caseAnnotations.annotated_events.push({
+                            event: event,
+                            is_correct: isCorrect
+                        });
+                        if (isCorrect) {
+                            caseAnnotations.correct_events.push(event);
+                        } else {
+                            caseAnnotations.incorrect_events.push(event);
+                        }
+                    }
+                }
+                
+                caseAnnotations.num_annotated = caseAnnotations.annotated_events.length;
+                if (caseAnnotations.num_annotated > 0) {
+                    caseAnnotations.precision = (caseAnnotations.correct_events.length / caseAnnotations.num_annotated * 100).toFixed(1);
+                } else {
+                    caseAnnotations.precision = 0;
+                }
+                
+                results.cases.push(caseAnnotations);
+            }
+            
+            const totalAnnotated = results.cases.reduce((sum, c) => sum + c.num_annotated, 0);
+            const totalCorrect = results.cases.reduce((sum, c) => sum + c.correct_events.length, 0);
+            if (totalAnnotated > 0) {
+                results.overall_precision = (totalCorrect / totalAnnotated * 100).toFixed(1);
+            } else {
+                results.overall_precision = 0;
+            }
+            results.total_annotated = totalAnnotated;
+            results.total_correct = totalCorrect;
+            
+            const blob = new Blob([JSON.stringify(results, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ground_truth_${new Date().toISOString().slice(0,19)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            alert(`✅ Ground truth saved!\n📊 Annotated: ${totalAnnotated} events\n✅ Correct: ${totalCorrect}\n📈 Precision: ${results.overall_precision}%`);
+        }
+        
+        renderCases();
+    </script>
+</body>
+</html>
