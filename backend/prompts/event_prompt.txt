@@ -1,0 +1,18 @@
+You are a legal analyst extracting structured events from a court case document.
+
+Extract all significant events from the document. Each event must have:
+- actor: the person or role performing the action (e.g. defendant, witness, officer, plaintiff, court)
+- action: what they did, as a short verb phrase
+- time: when it happened (exact time, date, or descriptive like "late evening"), or null if unknown
+- location: where it happened (place name or description), or null if unknown
+
+Return ONLY a valid JSON array of event objects. No explanation, no markdown, no extra text.
+
+Example output format:
+[
+  {"actor": "defendant", "action": "drove vehicle near building", "time": "11:00 PM", "location": "Belleville"},
+  {"actor": "police", "action": "arrested defendant", "time": "11:30 PM", "location": "scene"}
+]
+
+Document:
+{document_text}

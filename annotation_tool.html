@@ -1,0 +1,39 @@
+
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>LexIntel Ground Truth Annotation</title>
+            <style>
+                body { font-family: Arial; max-width: 1200px; margin: 0 auto; padding: 20px; }
+                .case { border: 1px solid #ccc; margin: 20px 0; padding: 20px; border-radius: 8px; }
+                .event { background: #f5f5f5; margin: 10px 0; padding: 10px; }
+                .correct { background: #d4edda; }
+                .incorrect { background: #f8d7da; }
+                button { margin: 5px; padding: 5px 10px; cursor: pointer; }
+                .actions { margin-top: 10px; }
+            </style>
+        </head>
+        <body>
+            <h1>LexIntel Ground Truth Annotation</h1>
+            <p>Case {case_index} of {total_cases}</p>
+            <div id="annotation-container"></div>
+            <script>
+                const cases = {cases_json};
+                let currentIndex = 0;
+                let annotations = [];
+                
+                function renderCase() {
+                    const case_ = cases[currentIndex];
+                    const container = document.getElementById('annotation-container');
+                    // ... rendering logic
+                }
+                
+                function saveAnnotation() {
+                    // Save to localStorage and eventually export as JSONL
+                }
+                
+                renderCase();
+            </script>
+        </body>
+        </html>
+        

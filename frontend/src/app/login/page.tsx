@@ -18,24 +18,31 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
-    if (mode === 'login') {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) { setError(error.message); setLoading(false); return }
-      router.replace('/')
-      router.refresh()
-    } else {
-      const { error } = await supabase.auth.signUp({ email, password })
-      if (error) { setError(error.message); setLoading(false); return }
-      // After signup, auto-sign in
-      const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password })
-      if (loginErr) {
-        setError('Account created. Please check your email to confirm, then log in.')
-        setLoading(false)
-        setMode('login')
-        return
+    try {
+      if (mode === 'login') {
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) { setError(error.message); setLoading(false); return }
+        router.replace('/')
+        router.refresh()
+      } else {
+        const { error } = await supabase.auth.signUp({ email, password })
+        if (error) { setError(error.message); setLoading(false); return }
+        // After signup, auto-sign in
+        const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password })
+        if (loginErr) {
+          setError('Account created. Please check your email to confirm, then log in.')
+          setLoading(false)
+          setMode('login')
+          return
+        }
+        router.replace('/')
+        router.refresh()
       }
-      router.replace('/')
-      router.refresh()
+    } catch {
+      setError(
+        'Could not reach Supabase. Check internet, Supabase URL/key in frontend/.env.local, then restart npm run dev.',
+      )
+      setLoading(false)
     }
   }
 

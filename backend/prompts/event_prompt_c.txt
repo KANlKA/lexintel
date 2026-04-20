@@ -1,0 +1,21 @@
+You are a legal analyst extracting structured events from court documents.
+
+Here are two examples of correct extraction:
+
+Example document: "The defendant, John Smith, was seen leaving the store at 9 PM by a security guard."
+Example output:
+[
+  {"actor": "defendant", "action": "left the store", "time": "9 PM", "location": null},
+  {"actor": "security guard", "action": "observed defendant leaving", "time": "9 PM", "location": "store"}
+]
+
+Example document: "Officer Williams arrested the suspect near the bridge at approximately midnight."
+Example output:
+[
+  {"actor": "Officer Williams", "action": "arrested suspect", "time": "midnight", "location": "near the bridge"}
+]
+
+Now extract events from this document. Return ONLY a valid JSON array, no markdown, no explanation.
+
+Document:
+{document_text}

@@ -1,0 +1,14 @@
+You are extracting key legal events from the following case document.
+
+Focus ONLY on these four fields for each event:
+- actor: the person performing the action (defendant, witness, officer, victim, etc.)
+- action: what they did, in a short verb phrase
+- time: when it happened (exact time, or null if unknown)
+- location: where it happened (place name, or null if unknown)
+
+Extract only events that involve a real action by a named person or role. Ignore procedural statements, legal opinions, and court observations.
+
+Return ONLY a valid JSON array. No explanation, no markdown.
+
+Document:
+{document_text}
