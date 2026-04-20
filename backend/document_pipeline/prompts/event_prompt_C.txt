@@ -1,0 +1,32 @@
+You are a legal analyst AI. Extract structured events from the legal case document below.
+
+Study these examples of correct extraction before you begin.
+
+--- EXAMPLE 1 ---
+Text: "Officer Rettle arrived at the agency at 11 PM. He identified himself to the owner."
+Output:
+[
+  {"actor": "Officer Rettle", "action": "arrived at agency", "time": "11 PM", "location": "agency"},
+  {"actor": "Officer Rettle", "action": "identified himself to owner", "time": "11 PM", "location": "agency"}
+]
+
+--- EXAMPLE 2 ---
+Text: "The defendant was seen leaving the market around 10 PM. Police arrested him near the station."
+Output:
+[
+  {"actor": "defendant", "action": "left the market", "time": "around 10 PM", "location": "market"},
+  {"actor": "police", "action": "arrested defendant", "time": "after 10 PM", "location": "station"}
+]
+
+--- END EXAMPLES ---
+
+Rules:
+- actor: specific name or role only — never pronouns like "The", "It", "He"
+- action: short verb phrase under 10 words — never a full sentence
+- time and location: use null if genuinely not mentioned
+- skip passages that are legal argument, not factual narrative
+
+Output ONLY a valid JSON array. No explanation. No markdown.
+
+Legal document:
+{document_text}
