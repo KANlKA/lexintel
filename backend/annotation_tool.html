@@ -3,150 +3,229 @@
 <head>
     <title>LexIntel Ground Truth Annotation</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
-        .case { background: white; margin: 20px 0; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .case-header { background: #2c3e50; color: white; padding: 10px; margin: -20px -20px 20px -20px; border-radius: 8px 8px 0 0; }
-        .event { background: #f9f9f9; margin: 10px 0; padding: 15px; border-left: 4px solid #3498db; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background: #f0f2f5; }
+        h1 { color: #2c3e50; }
+        .stats-bar { background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .case { background: white; margin: 20px 0; padding: 0; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .case-header { background: #2c3e50; color: white; padding: 15px; border-radius: 8px 8px 0 0; cursor: pointer; }
+        .case-header:hover { background: #34495e; }
+        .case-content { padding: 20px; display: none; }
+        .case-content.active { display: block; }
+        .event { background: #f8f9fa; margin: 10px 0; padding: 15px; border-left: 4px solid #3498db; border-radius: 4px; }
         .event.correct { border-left-color: #27ae60; background: #e8f5e9; }
         .event.incorrect { border-left-color: #e74c3c; background: #fdecea; }
-        .event-field { display: inline-block; margin: 5px 10px; padding: 5px; background: #ecf0f1; border-radius: 4px; }
-        button { margin: 5px; padding: 8px 15px; cursor: pointer; background: #3498db; color: white; border: none; border-radius: 4px; }
-        button:hover { background: #2980b9; }
-        .correct-btn { background: #27ae60; }
-        .correct-btn:hover { background: #229954; }
-        .incorrect-btn { background: #e74c3c; }
-        .incorrect-btn:hover { background: #c0392b; }
-        .actions { margin-top: 15px; }
-        .save-btn { background: #2c3e50; padding: 10px 20px; font-size: 16px; }
-        .progress { background: #ecf0f1; padding: 10px; margin-bottom: 20px; border-radius: 4px; }
-        .text-preview { background: #fef9e7; padding: 15px; margin: 15px 0; border-left: 4px solid #f39c12; font-size: 14px; line-height: 1.6; }
-        .annotation-status { margin-top: 10px; font-size: 14px; color: #7f8c8d; }
+        .event-field { display: inline-block; margin: 5px 8px; padding: 4px 10px; background: white; border-radius: 4px; font-size: 14px; }
+        .event-field strong { color: #2c3e50; }
+        button { margin: 5px; padding: 6px 12px; cursor: pointer; border: none; border-radius: 4px; font-size: 13px; }
+        .btn-correct { background: #27ae60; color: white; }
+        .btn-correct:hover { background: #229954; }
+        .btn-incorrect { background: #e74c3c; color: white; }
+        .btn-incorrect:hover { background: #c0392b; }
+        .btn-save { background: #3498db; color: white; padding: 12px 24px; font-size: 16px; margin-top: 20px; }
+        .btn-save:hover { background: #2980b9; }
+        .progress { background: #ecf0f1; padding: 10px; border-radius: 4px; margin: 10px 0; }
+        .confidence { font-size: 11px; color: #7f8c8d; margin-top: 5px; }
+        .annotation-status { font-size: 12px; margin-top: 8px; color: #7f8c8d; }
+        .toggle-icon { float: right; font-size: 20px; }
     </style>
 </head>
 <body>
-    <h1>📝 LexIntel Ground Truth Annotation Tool</h1>
-    <div class="progress" id="progress">Loading...</div>
-    <div id="annotation-container"></div>
-    <div style="position: fixed; bottom: 20px; right: 20px;">
-        <button class="save-btn" onclick="saveAllAnnotations()">💾 Save All Annotations</button>
+    <h1>📝 LexIntel Ground Truth Annotation</h1>
+    <p>For each extracted event, mark if it is <strong>correct</strong> based on the original legal document.</p>
+    
+    <div class="stats-bar" id="stats">
+        Loading...
+    </div>
+    
+    <div id="cases-container"></div>
+    
+    <div style="text-align: center;">
+        <button class="btn-save" onclick="saveAllAnnotations()">💾 Download Ground Truth (JSON)</button>
     </div>
 
     <script>
-        const cases = [{"id": "unknown", "events": [], "text": "Text not found"}];
-        let currentIndex = 0;
+        const casesData = [{"id": "435649", "events": [{"event_id": "31af4f49-3b86-42ff-9cdd-de1281e462b9", "actor": "The", "action": "The omission of a colloquium, showing to what the words spoken, referred, so as to render them actionable, we consider fatal.", "time": null, "location": null, "confidence": 0.55}, {"event_id": "b5cb27d5-75fc-4975-992d-3f97a68ecfa3", "actor": "The", "action": "The declaration is not good at common law, nor under the statute.", "time": null, "location": null, "confidence": 0.55}, {"event_id": "9bcd7c3f-8d4d-4c3c-bf36-0aeec6352590", "actor": "The", "action": "The declaration does not bring the case within the letter or meaning of the statute.", "time": null, "location": null, "confidence": 0.55}, {"event_id": "0c824efb-793b-4147-bd85-704355905e2c", "actor": "The", "action": "The judgment of the court below is affirmed, with costs,", "time": null, "location": null, "confidence": 0.55}, {"event_id": "ad6eeef5-8a3b-4dca-9d13-76c77d596529", "actor": "Unknown actor", "action": "(a) To say that the plaintiff has swore false, or taken a false oath, is not actionable.", "time": null, "location": null, "confidence": 0.55}, {"event_id": "492af45f-01fb-4d07-84aa-f237ab4e202c", "actor": "There", "action": "There must be a colloquium of its being in a cause pending in a court of competent jurisdiction, and on a point material to the issue.", "time": null, "location": null, "confidence": 0.55}, {"event_id": "cc5abd03-2de3-4206-a846-459968ab5bae", "actor": "The", "action": "The term foresworn is not in itself actionable.", "time": null, "location": null, "confidence": 0.55}], "num_events": 7}, {"id": "435599", "events": [{"event_id": "14c99439-d429-4994-bc28-32dbdf876cb4", "actor": "Chief Justice Reynolds", "action": "delivered opinion", "time": null, "location": null, "confidence": 0.7}, {"event_id": "6b77ef43-db4c-44e6-b46c-6b682238493e", "actor": "plaintiff", "action": "sue to enforce payment", "time": null, "location": null, "confidence": 0.7}, {"event_id": "e153387e-2dd8-45cb-b66f-283b2319987e", "actor": "plaintiff", "action": "prosecute maker to insolvency", "time": null, "location": null, "confidence": 0.7}, {"event_id": "2b1c7d89-757d-4d20-a710-f87ec2fea18a", "actor": "plaintiff", "action": "sleep until one or two terms of the court had elapsed", "time": null, "location": null, "confidence": 0.7}, {"event_id": "5aa9df4e-bd93-4b2a-833e-b226e5c1da19", "actor": "court", "action": "refer to case of Thompson v. Armstrong", "time": null, "location": null, "confidence": 0.7}, {"event_id": "f41d99bc-ec7f-493b-a477-f8e8e120039f", "actor": "court", "action": "state that two cases are entirely apposite", "time": null, "location": null, "confidence": 0.7}, {"event_id": "744890e0-94c4-4ff2-bfce-f818e3905269", "actor": "court", "action": "overrule demurrer", "time": null, "location": null, "confidence": 0.7}, {"event_id": "08d87216-b2e8-4566-8501-f8137217c629", "actor": "court", "action": "explain principle of pleading", "time": null, "location": null, "confidence": 0.7}, {"event_id": "93ec804a-4a29-4dcf-a0af-4a2c0ff24c64", "actor": "court", "action": "determine that second averment is surplusage", "time": null, "location": null, "confidence": 0.7}, {"event_id": "dce56bc1-6b8d-4aa6-a090-aee52f1d29b5", "actor": "court", "action": "reverse judgment below", "time": null, "location": null, "confidence": 0.7}, {"event_id": "e7d45876-4604-4223-b7cb-de8900021056", "actor": "court", "action": "remand cause with liberty to defendant", "time": null, "location": null, "confidence": 0.7}, {"event_id": "aaf27e71-1de6-4e22-b264-7fd4d049c959", "actor": "court", "action": "reverse judgment", "time": null, "location": null, "confidence": 0.7}, {"event_id": "f48197a7-f3a7-4882-9d65-ba6881c3312a", "actor": "court", "action": "cite cases", "time": null, "location": null, "confidence": 0.7}, {"event_id": "c81a06a9-da5e-4ba4-940d-19648f33eeec", "actor": "court", "action": "refer to note to case of Mason v. Wash", "time": null, "location": null, "confidence": 0.7}, {"event_id": "42ca8c60-1f0a-4697-861a-3952bcfaaa86", "actor": "court", "action": "affirm in Stacy v. Baker", "time": null, "location": null, "confidence": 0.7}, {"event_id": "7716074e-ad53-4daa-a23b-86140753899a", "actor": "court", "action": "affirm in Cowles v. Litchfield", "time": null, "location": null, "confidence": 0.7}, {"event_id": "2d5f8ebb-8779-4da5-aa7f-27010a839f3f", "actor": "court", "action": "affirm in Fitch v. Haight", "time": null, "location": null, "confidence": 0.7}, {"event_id": "6431a557-2229-4ea5-a37c-6aa1beb23b9e", "actor": "court", "action": "affirm in Prather v. Vineyard", "time": null, "location": null, "confidence": 0.7}, {"event_id": "f822ef5a-5554-44f5-9c8f-b3095b539e4d", "actor": "court", "action": "affirm in Young v. Campbell et al.", "time": null, "location": null, "confidence": 0.7}, {"event_id": "eba58cc1-8696-46ce-b57d-fc738187f391", "actor": "court", "action": "affirm in Israel v. Reynolds", "time": null, "location": null, "confidence": 0.7}, {"event_id": "466467dc-25ef-4b84-bbf0-146f193ee7bd", "actor": "court", "action": "affirm in Governor of Illinois v. Ridgway", "time": null, "location": null, "confidence": 0.7}, {"event_id": "79eb026a-abcc-4e1c-9635-8a392579f37b", "actor": "court", "action": "affirm in Stout v. Whitney", "time": null, "location": null, "confidence": 0.7}, {"event_id": "4589a8e0-7cee-4e92-987b-ecc35c65cd7d", "actor": "court", "action": "affirm in Walter v. Stephenson", "time": null, "location": null, "confidence": 0.7}, {"event_id": "9ce99695-a574-4a71-a709-f7ecb6d7e891", "actor": "court", "action": "affirm in Anderson v. Richards", "time": null, "location": null, "confidence": 0.7}, {"event_id": "0dddb9d8-995e-4b25-abcc-a1189aa92832", "actor": "court", "action": "affirm in Tomlin v. T. and P. R. R. Co.", "time": null, "location": null, "confidence": 0.7}, {"event_id": "c7fc444f-54a0-4354-a99b-546d283c6100", "actor": "court", "action": "refer to Whitney v. Crosby", "time": null, "location": null, "confidence": 0.7}, {"event_id": "51c7a7dd-4335-42f3-994e-27b164fddfea", "actor": "court", "action": "refer to Tarlton v. Miller", "time": null, "location": null, "confidence": 0.7}], "num_events": 27}, {"id": "435756", "events": [{"event_id": "0ec72dae-9242-4904-8a24-a20e79039ff1", "actor": "Justice Reynolds", "action": "filed a demurrer", "time": null, "location": null, "confidence": 0.7}, {"event_id": "7f3048b9-f2a8-4295-931e-dc3a71f0a77f", "actor": "Justice Reynolds", "action": "sustained the demurrer", "time": null, "location": null, "confidence": 0.7}, {"event_id": "284aaf4d-705c-4f21-a6b5-4df747336f90", "actor": "Rountree", "action": "amended his declaration", "time": null, "location": null, "confidence": 0.7}, {"event_id": "5b81d762-0433-48b5-86ae-404eb1e5ade8", "actor": "Rountree", "action": "took judgment", "time": null, "location": null, "confidence": 0.7}, {"event_id": "0a652b7b-5c66-4f25-aa1c-c3686572412a", "actor": "Justice Reynolds", "action": "gave an opinion", "time": null, "location": null, "confidence": 0.7}, {"event_id": "6990d297-67c7-43df-beb4-00e93f6c79dc", "actor": "Judges Browne and Wilson", "action": "gave no opinion", "time": null, "location": null, "confidence": 0.7}, {"event_id": "ae017915-77a3-4337-a39c-19281501b9a5", "actor": "Judge Breese", "action": "reported the decision", "time": null, "location": null, "confidence": 0.7}, {"event_id": "fa3cf5ed-7d1c-40ae-8561-e188c915f273", "actor": "Justice Reynolds", "action": "stated the court was divided in opinion", "time": null, "location": null, "confidence": 0.7}, {"event_id": "e56a4067-9fa1-4094-b307-d6ff71dbabd4", "actor": "Justice Reynolds", "action": "affirmed the judgment", "time": null, "location": null, "confidence": 0.7}, {"event_id": "996cdbc2-b387-4c6b-9bdc-b869b62083d6", "actor": "Justice Reynolds", "action": "criticised the decision", "time": null, "location": null, "confidence": 0.7}, {"event_id": "f91cc66d-dc00-47c6-b61f-3e61f84e27df", "actor": "Justice Reynolds", "action": "stated the decision was not final", "time": null, "location": null, "confidence": 0.7}, {"event_id": "b002c77a-6cb7-4c57-81bb-435b5732a008", "actor": "Justice Reynolds", "action": "cited Crane v. Graves", "time": null, "location": null, "confidence": 0.7}, {"event_id": "5efe7c50-4b0e-41e4-9abf-f730e28248e3", "actor": "Justice Reynolds", "action": "cited Scott v. Cromwell", "time": null, "location": null, "confidence": 0.7}], "num_events": 13}, {"id": "435812", "events": [{"event_id": "2ba50ea8-d2ec-4fcd-978a-288d7722ad4f", "actor": "the court", "action": "considered the facts disclosed by the affidavit", "time": null, "location": null, "confidence": 0.7}, {"event_id": "a36ae65a-c30f-49ae-a586-b09e0fd44596", "actor": "the court", "action": "determined the affidavit justified a new trial", "time": null, "location": null, "confidence": 0.7}, {"event_id": "307c5fc2-281a-4ce7-99dd-21893dc67368", "actor": "the court", "action": "granted a new trial", "time": null, "location": null, "confidence": 0.7}, {"event_id": "19f55d7c-8032-417f-a26f-2625b2bd4d11", "actor": "the court", "action": "affirmed the judgment", "time": null, "location": null, "confidence": 0.7}, {"event_id": "b8d04c3d-74c6-4866-b5b5-bd6812711891", "actor": "the court", "action": "cited Cornelius v. Boucher", "time": null, "location": null, "confidence": 0.7}, {"event_id": "8254bade-09c5-4004-ba03-7993acb8bcd7", "actor": "the court", "action": "cited Clemson v. Kruper", "time": null, "location": null, "confidence": 0.7}, {"event_id": "04e14e96-e388-4b5b-b647-f63d7b019b34", "actor": "the court", "action": "cited Collins v. Claypole", "time": null, "location": null, "confidence": 0.7}, {"event_id": "fe7ec6b9-2525-4d24-b8c5-8975c9915462", "actor": "the court", "action": "cited Street v. Blue", "time": null, "location": null, "confidence": 0.7}, {"event_id": "854bba0a-57f7-4546-a0b2-48cb42c77030", "actor": "the court", "action": "cited Adams et al. v. Smith", "time": null, "location": null, "confidence": 0.7}, {"event_id": "4f6f79fd-d273-45bd-a07a-ca862ab8d541", "actor": "the court", "action": "cited Vernon et al. v. May", "time": null, "location": null, "confidence": 0.7}, {"event_id": "47a4d507-8457-4025-84bd-45fb0d629ce6", "actor": "the court", "action": "cited Littleton v. Moses", "time": null, "location": null, "confidence": 0.7}, {"event_id": "85f8d67a-921c-4b24-a867-f9768c2b4b07", "actor": "the court", "action": "cited Harmison v. Clark", "time": null, "location": null, "confidence": 0.7}, {"event_id": "f7c6cb2a-1225-4002-82cf-61d1a3f9373f", "actor": "the legislature", "action": "passed the act of 1837", "time": "1837", "location": null, "confidence": 0.75}, {"event_id": "02afbf06-60d0-49d0-92e0-cd3cb1a5fe98", "actor": "the court", "action": "cited Smith v. Shultz", "time": null, "location": null, "confidence": 0.7}, {"event_id": "974c480c-4ec8-4b1b-bd83-d2121523087c", "actor": "the court", "action": "cited Pate v. People", "time": null, "location": null, "confidence": 0.7}, {"event_id": "df064149-9748-47d7-b226-083abb4fbc1f", "actor": "the court", "action": "cited Holliday v. The People", "time": null, "location": null, "confidence": 0.7}, {"event_id": "08ae4bfe-36d7-4ade-a47a-63bfa1996a91", "actor": "the court", "action": "cited Baxter v. The People", "time": null, "location": null, "confidence": 0.7}, {"event_id": "0c5d2135-a78b-43e8-aa1b-b0cf6ee197cc", "actor": "the court", "action": "cited Martin v. The People", "time": null, "location": null, "confidence": 0.7}, {"event_id": "af814924-e410-47a8-a58d-62878c295dda", "actor": "the legislature", "action": "passed the act of 1857", "time": "1857", "location": null, "confidence": 0.75}, {"event_id": "7c80c6bb-5d2a-411e-a209-3d362d25eaca", "actor": "the court", "action": "cited Smith v. Eames", "time": null, "location": null, "confidence": 0.7}, {"event_id": "3a5de98c-ca37-4c4c-a994-830ee9ca75a4", "actor": "the court", "action": "cited Brookbank v. Smith", "time": null, "location": null, "confidence": 0.7}, {"event_id": "19a06c6e-4899-4a25-887e-ca7355902ff3", "actor": "the court", "action": "cited Barr v. Grats", "time": null, "location": null, "confidence": 0.7}, {"event_id": "f4707a4c-3c62-4e81-931e-0940b3e9c829", "actor": "the court", "action": "cited Dana v. Tucker", "time": null, "location": null, "confidence": 0.7}, {"event_id": "ff2484b5-1416-43b4-bf75-72292a1e1985", "actor": "the court", "action": "cited Forrester v. Guard", "time": null, "location": null, "confidence": 0.7}, {"event_id": "b98bb1e5-2bbb-47d7-8bb6-19125517a5b0", "actor": "the court", "action": "doubted the decision in Forester et al. v. Guard et al.", "time": null, "location": null, "confidence": 0.7}, {"event_id": "c837afb9-7fdb-4c35-b399-3e8511e74c60", "actor": "the court", "action": "doubted the decision in Browder v. Johnson", "time": null, "location": null, "confidence": 0.7}, {"event_id": "1f568034-533c-42de-8cdc-9cf237b31b6f", "actor": "the court", "action": "ruled that a juror's affidavit can not be received to show what transpired in the jury room", "time": null, "location": null, "confidence": 0.7}, {"event_id": "c57d4b9e-f6ca-486b-9dcf-fd857bfe94c2", "actor": "the court", "action": "ruled that a juror's affidavit can be received on a point entirely disconnected with his acts", "time": null, "location": null, "confidence": 0.7}, {"event_id": "8cd8f350-b259-48fb-af00-2eff1dd4b452", "actor": "the court", "action": "ruled that a verdict can be supported by affidavits of jurors", "time": null, "location": null, "confidence": 0.7}, {"event_id": "7c5c2361-7fdb-4c3a-9f10-007349b80bcc", "actor": "the court", "action": "ruled that granting new trials rests in the sound discretion of the court", "time": null, "location": null, "confidence": 0.7}], "num_events": 30}, {"id": "435571", "events": [{"event_id": "110b1c08-35fd-4dd1-b079-87e670851c80", "actor": "the Court", "action": "make profert of writings under seal", "time": null, "location": null, "confidence": 0.7}, {"event_id": "9571f1c7-fd0f-4f10-a80e-7040d7471427", "actor": "the party", "action": "have oyer of writings not under seal", "time": null, "location": null, "confidence": 0.7}, {"event_id": "b8b6b732-77db-4304-beb9-64f46c3e92f6", "actor": "the party", "action": "deny the execution of writings", "time": null, "location": null, "confidence": 0.7}, {"event_id": "ae53ebbc-4cd0-4ee0-ad37-38baa3fb49e8", "actor": "the court", "action": "compel the production of the original", "time": null, "location": null, "confidence": 0.7}, {"event_id": "48cc0dbd-8cae-432f-92e9-3babbd818fdd", "actor": "the court", "action": "affirm the judgment", "time": null, "location": null, "confidence": 0.7}, {"event_id": "3c03b7c0-7e82-4a00-9917-18aee55b37cc", "actor": "the court", "action": "believe it is never necessary to state a consideration", "time": null, "location": null, "confidence": 0.7}, {"event_id": "a4f860ce-aa59-4f8a-9f53-b71f59ac6d02", "actor": "the court", "action": "affirm the judgment", "time": null, "location": null, "confidence": 0.7}, {"event_id": "40d9909b-725e-46e0-8394-e86004e75396", "actor": "the court", "action": "take advantage of a variance", "time": null, "location": null, "confidence": 0.7}, {"event_id": "9d468427-b8cc-4f34-8dac-7ce1aec5ad73", "actor": "the court", "action": "declare upon a bill of exchange", "time": null, "location": null, "confidence": 0.7}, {"event_id": "01ba6519-506b-4036-b76c-916ba4aa3ff8", "actor": "the indorsee", "action": "bring an action against the maker", "time": null, "location": null, "confidence": 0.7}, {"event_id": "f099d7d1-8d04-4c49-9cbb-6a3ec9fb61a3", "actor": "the defendant", "action": "show a want of consideration", "time": null, "location": null, "confidence": 0.7}, {"event_id": "285342b3-4d43-4cf8-a4c3-230020f3cf02", "actor": "the payee", "action": "maintain an action of debt", "time": null, "location": null, "confidence": 0.7}, {"event_id": "79773d39-204d-4924-ac7e-4c2fb5106bbb", "actor": "the party", "action": "plead fraud or circumvention", "time": null, "location": null, "confidence": 0.7}, {"event_id": "6a93d44a-74e3-4937-aba4-7719b4674a25", "actor": "the court", "action": "hold that the statute applies only to cases of fraud", "time": null, "location": null, "confidence": 0.7}, {"event_id": "d26b601a-fa8c-414e-8f51-92358c571710", "actor": "the court", "action": "hold that the fraud was in the consideration", "time": null, "location": null, "confidence": 0.7}], "num_events": 15}];
         let annotations = {};
         
-        function renderCase() {
-            if (currentIndex >= cases.length) {
-                document.getElementById('annotation-container').innerHTML = '<h2>✅ All cases annotated!</h2><p>Click "Save All Annotations" to download your work.</p>';
-                document.getElementById('progress').innerHTML = `Completed ${cases.length} of ${cases.length} cases! 🎉`;
-                return;
+        function calculateStats() {
+            let totalAnnotated = Object.keys(annotations).length;
+            let totalCorrect = Object.values(annotations).filter(v => v === true).length;
+            let totalEvents = 0;
+            for (let case_ of casesData) {
+                totalEvents += case_.events.length;
             }
+            let percentComplete = (totalAnnotated / totalEvents * 100).toFixed(1);
+            let precision = totalAnnotated > 0 ? (totalCorrect / totalAnnotated * 100).toFixed(1) : 0;
             
-            const case_ = cases[currentIndex];
-            const annotated = annotations[case_.id] || {};
-            
-            document.getElementById('progress').innerHTML = `Case ${currentIndex + 1} of ${cases.length} | ${Object.keys(annotations).length} cases completed so far`;
-            
-            let eventsHtml = '';
-            case_.events.forEach((event, idx) => {
-                const isCorrect = annotated[idx] === true;
-                const isIncorrect = annotated[idx] === false;
-                const statusClass = isCorrect ? 'correct' : (isIncorrect ? 'incorrect' : '');
-                
-                eventsHtml += `
-                    <div class="event ${statusClass}">
-                        <strong>Event ${idx + 1}:</strong><br>
-                        <div class="event-field">👤 Actor: ${event.actor || '?'}</div>
-                        <div class="event-field">⚡ Action: ${event.action || '?'}</div>
-                        <div class="event-field">⏰ Time: ${event.time || '?'}</div>
-                        <div class="event-field">📍 Location: ${event.location || '?'}</div>
-                        <div class="actions">
-                            <button class="correct-btn" onclick="annotateEvent(${idx}, true)">✓ Correct</button>
-                            <button class="incorrect-btn" onclick="annotateEvent(${idx}, false)">✗ Incorrect</button>
-                        </div>
-                        <div class="annotation-status">
-                            ${annotated[idx] === true ? '✓ Marked as correct' : (annotated[idx] === false ? '✗ Marked as incorrect' : 'Not annotated yet')}
-                        </div>
-                    </div>
-                `;
-            });
-            
-            const html = `
-                <div class="case">
-                    <div class="case-header">
-                        <h3>Case ID: ${case_.id}</h3>
-                    </div>
-                    <div class="text-preview">
-                        <strong>📄 Document Preview:</strong><br>
-                        ${case_.text.substring(0, 800)}${case_.text.length > 800 ? '...' : ''}
-                    </div>
-                    <h4>Extracted Events:</h4>
-                    ${eventsHtml}
-                    <div style="margin-top: 20px;">
-                        <button onclick="previousCase()">◀ Previous</button>
-                        <button onclick="nextCase()" style="background: #27ae60;">Next ▶</button>
-                    </div>
-                </div>
+            document.getElementById('stats').innerHTML = `
+                <strong>📊 Progress:</strong> ${totalAnnotated}/${totalEvents} events annotated (${percentComplete}%)<br>
+                <strong>✅ Correct:</strong> ${totalCorrect} &nbsp;|&nbsp;
+                <strong>❌ Incorrect:</strong> ${totalAnnotated - totalCorrect} &nbsp;|&nbsp;
+                <strong>📈 Current Precision:</strong> ${precision}%
             `;
+        }
+        
+        function toggleCase(caseId) {
+            const content = document.getElementById(`case-content-${caseId}`);
+            content.classList.toggle('active');
+            const icon = document.getElementById(`toggle-icon-${caseId}`);
+            if (content.classList.contains('active')) {
+                icon.textContent = '▼';
+            } else {
+                icon.textContent = '▶';
+            }
+        }
+        
+        function annotateEvent(caseId, eventIdx, isCorrect) {
+            const key = `${caseId}_${eventIdx}`;
+            annotations[key] = isCorrect;
             
-            document.getElementById('annotation-container').innerHTML = html;
-        }
-        
-        function annotateEvent(eventIdx, isCorrect) {
-            const case_ = cases[currentIndex];
-            if (!annotations[case_.id]) {
-                annotations[case_.id] = {};
+            const eventDiv = document.getElementById(`event-${caseId}-${eventIdx}`);
+            if (isCorrect) {
+                eventDiv.classList.add('correct');
+                eventDiv.classList.remove('incorrect');
+            } else {
+                eventDiv.classList.add('incorrect');
+                eventDiv.classList.remove('correct');
             }
-            annotations[case_.id][eventIdx] = isCorrect;
-            renderCase();
-        }
-        
-        function nextCase() {
-            currentIndex++;
-            renderCase();
-        }
-        
-        function previousCase() {
-            if (currentIndex > 0) {
-                currentIndex--;
-                renderCase();
+            
+            const statusSpan = document.getElementById(`status-${caseId}-${eventIdx}`);
+            if (isCorrect) {
+                statusSpan.innerHTML = '✓ Marked as correct';
+            } else {
+                statusSpan.innerHTML = '✗ Marked as incorrect';
             }
+            
+            calculateStats();
+        }
+        
+        function renderCases() {
+            let html = '';
+            
+            for (let case_ of casesData) {
+                html += `
+                    <div class="case">
+                        <div class="case-header" onclick="toggleCase('${case_.id}')">
+                            <strong>📁 Case ID: ${case_.id}</strong>
+                            <span class="toggle-icon" id="toggle-icon-${case_.id}">▶</span>
+                            <div style="font-size: 12px; margin-top: 5px;">${case_.events.length} events</div>
+                        </div>
+                        <div class="case-content" id="case-content-${case_.id}">
+                `;
+                
+                for (let i = 0; i < case_.events.length; i++) {
+                    const event = case_.events[i];
+                    const key = `${case_.id}_${i}`;
+                    const isAnnotated = annotations[key] !== undefined;
+                    const isCorrect = annotations[key] === true;
+                    let statusClass = '';
+                    if (isAnnotated) {
+                        statusClass = isCorrect ? 'correct' : 'incorrect';
+                    }
+                    
+                    html += `
+                        <div class="event ${statusClass}" id="event-${case_.id}-${i}">
+                            <div><strong>Event ${i + 1}:</strong></div>
+                            <div class="event-field"><strong>👤 Actor:</strong> ${event.actor}</div>
+                            <div class="event-field"><strong>⚡ Action:</strong> ${event.action}</div>
+                            <div class="event-field"><strong>⏰ Time:</strong> ${event.time}</div>
+                            <div class="event-field"><strong>📍 Location:</strong> ${event.location}</div>
+                            <div class="confidence"><strong>Confidence:</strong> ${(event.confidence * 100).toFixed(1)}%</div>
+                            <div>
+                                <button class="btn-correct" onclick="annotateEvent('${case_.id}', ${i}, true)">✓ Correct</button>
+                                <button class="btn-incorrect" onclick="annotateEvent('${case_.id}', ${i}, false)">✗ Incorrect</button>
+                            </div>
+                            <div class="annotation-status" id="status-${case_.id}-${i}">
+                    `;
+                    
+                    if (isAnnotated) {
+                        if (isCorrect) {
+                            html += '✓ Marked as correct';
+                        } else {
+                            html += '✗ Marked as incorrect';
+                        }
+                    } else {
+                        html += 'Not annotated yet';
+                    }
+                    
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                html += `</div></div>`;
+            }
+            
+            document.getElementById('cases-container').innerHTML = html;
+            calculateStats();
         }
         
         function saveAllAnnotations() {
-            const output = [];
-            for (const caseId in annotations) {
-                const caseData = cases.find(c => c.id === caseId);
-                if (caseData) {
-                    const correctEvents = [];
-                    const annotation = annotations[caseId];
-                    for (let i = 0; i < caseData.events.length; i++) {
-                        if (annotation[i] === true) {
-                            correctEvents.push(caseData.events[i]);
+            const results = {
+                timestamp: new Date().toISOString(),
+                total_cases: casesData.length,
+                cases: []
+            };
+            
+            for (let case_ of casesData) {
+                const caseAnnotations = {
+                    case_id: case_.id,
+                    total_events: case_.events.length,
+                    annotated_events: [],
+                    correct_events: [],
+                    incorrect_events: []
+                };
+                
+                for (let i = 0; i < case_.events.length; i++) {
+                    const key = `${case_.id}_${i}`;
+                    if (annotations[key] !== undefined) {
+                        const event = case_.events[i];
+                        const isCorrect = annotations[key];
+                        caseAnnotations.annotated_events.push({
+                            event: event,
+                            is_correct: isCorrect
+                        });
+                        if (isCorrect) {
+                            caseAnnotations.correct_events.push(event);
+                        } else {
+                            caseAnnotations.incorrect_events.push(event);
                         }
                     }
-                    output.push({
-                        case_id: caseId,
-                        correct_events: correctEvents,
-                        total_events: caseData.events.length,
-                        annotation_complete: Object.keys(annotation).length === caseData.events.length
-                    });
                 }
+                
+                caseAnnotations.num_annotated = caseAnnotations.annotated_events.length;
+                if (caseAnnotations.num_annotated > 0) {
+                    caseAnnotations.precision = (caseAnnotations.correct_events.length / caseAnnotations.num_annotated * 100).toFixed(1);
+                } else {
+                    caseAnnotations.precision = 0;
+                }
+                
+                results.cases.push(caseAnnotations);
             }
             
-            const blob = new Blob([output.map(o => JSON.stringify(o)).join('\n')], {type: 'application/jsonl'});
+            const totalAnnotated = results.cases.reduce((sum, c) => sum + c.num_annotated, 0);
+            const totalCorrect = results.cases.reduce((sum, c) => sum + c.correct_events.length, 0);
+            if (totalAnnotated > 0) {
+                results.overall_precision = (totalCorrect / totalAnnotated * 100).toFixed(1);
+            } else {
+                results.overall_precision = 0;
+            }
+            results.total_annotated = totalAnnotated;
+            results.total_correct = totalCorrect;
+            
+            const blob = new Blob([JSON.stringify(results, null, 2)], {type: 'application/json'});
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `ground_truth_${new Date().toISOString().slice(0,19)}.jsonl`;
+            a.download = `ground_truth_${new Date().toISOString().slice(0,19)}.json`;
             a.click();
             URL.revokeObjectURL(url);
             
-            alert(`✅ Saved ${output.length} case annotations!`);
+            alert(`✅ Ground truth saved!\n📊 Annotated: ${totalAnnotated} events\n✅ Correct: ${totalCorrect}\n📈 Precision: ${results.overall_precision}%`);
         }
         
-        renderCase();
+        renderCases();
     </script>
 </body>
 </html>
