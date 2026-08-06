@@ -9,7 +9,7 @@ This enables downstream capabilities such as:
 * Timeline reconstruction of legal cases
 * Detection of contradictions across documents
 * Identification of weak or inconsistent claims
-* Automated litigation intelligence
+* Automated litigation intelligence.
 
 ---
 
